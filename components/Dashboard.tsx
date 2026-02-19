@@ -1,8 +1,8 @@
 import React, { useEffect, useState } from 'react';
-import { collection, query, getDocs, deleteDoc, doc } from 'firebase/firestore';
+import { collection, getDocs, deleteDoc, doc } from 'firebase/firestore';
 import { db } from '../firebase';
 import { AppState } from '../types';
-import { Plus, Search, FileText, Calendar, Trash2, Loader2, LogOut, Wifi, WifiOff, GraduationCap, Copy, LayoutGrid, List, AlertTriangle, AlertCircle } from 'lucide-react';
+import { Plus, Search, FileText, Calendar, Trash2, Loader2, LogOut, GraduationCap, Copy, LayoutGrid, List, AlertTriangle, AlertCircle } from 'lucide-react';
 import { INFRA_CATALOG, REGIONS } from '../constants';
 
 interface SavedProposal {
@@ -30,7 +30,6 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNewProposal, onLoadPropo
   const [searchTerm, setSearchTerm] = useState('');
   const [viewType, setViewType] = useState<'grid' | 'list'>('grid');
   const [fetchError, setFetchError] = useState<string | null>(null);
-
   const [modalConfig, setModalConfig] = useState<{
       isOpen: boolean;
       title: string;
@@ -60,16 +59,15 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNewProposal, onLoadPropo
             setProposals([]);
         }
       } else {
-        const q = query(collection(db, 'proposals'));
-        const querySnapshot = await getDocs(q);
+        // Busca simples da coleção - REQUISITO: Ver tudo
+        const querySnapshot = await getDocs(collection(db, 'proposals'));
         
         const items: SavedProposal[] = [];
         querySnapshot.forEach((doc) => {
             const data = doc.data();
-            // REQUISITO: Qualquer usuário logado vê todas as propostas baixadas
             items.push({
                 id: doc.id,
-                userId: data.userId,
+                userId: data.userId || '',
                 updatedAt: data.updatedAt,
                 schoolName: data.data?.client?.schoolName || data.schoolName || 'Sem nome',
                 userEmail: data.userEmail,
@@ -81,8 +79,8 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNewProposal, onLoadPropo
         setProposals(items);
       }
     } catch (error: any) {
-      console.error("Error fetching proposals:", error);
-      setFetchError(error.message || "Erro de acesso. Verifique suas regras no Firebase.");
+      console.error("Erro ao buscar propostas no Firestore:", error);
+      setFetchError(error.message);
     } finally {
       setLoading(false);
     }
@@ -90,7 +88,6 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNewProposal, onLoadPropo
 
   const handleDelete = (e: React.MouseEvent, id: string) => {
     e.stopPropagation(); 
-    
     setModalConfig({
         isOpen: true,
         title: 'Excluir Proposta',
@@ -99,41 +96,16 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNewProposal, onLoadPropo
         isDestructive: true,
         onConfirm: async () => {
             try {
-                if (isOffline) {
-                     const localData = localStorage.getItem('offline_proposals');
-                     if (localData) {
-                         const allProposals = JSON.parse(localData);
-                         const remaining = allProposals.filter((p: any) => p.id !== id);
-                         localStorage.setItem('offline_proposals', JSON.stringify(remaining));
-                         setProposals(remaining.sort((a: any, b: any) => (b.updatedAt?.seconds || 0) - (a.updatedAt?.seconds || 0)));
-                     }
-                } else {
+                if (!isOffline) {
                     await deleteDoc(doc(db, 'proposals', id));
-                    setProposals(prev => prev.filter(p => p.id !== id));
                 }
+                setProposals(prev => prev.filter(p => p.id !== id));
             } catch (error) {
-                console.error("Error deleting:", error);
-                alert("Apenas administradores podem excluir propostas no banco de dados.");
+                console.error("Delete error:", error);
+                alert("Erro ao excluir. Apenas administradores podem realizar esta ação.");
             }
         }
     });
-  };
-
-  const handleDuplicate = (e: React.MouseEvent, proposal: SavedProposal) => {
-      e.stopPropagation();
-      setModalConfig({
-          isOpen: true,
-          title: 'Duplicar Proposta',
-          message: `Deseja criar uma cópia da proposta "${proposal.schoolName}"?`,
-          confirmLabel: 'Duplicar',
-          isDestructive: false,
-          onConfirm: () => {
-              const newData: AppState = JSON.parse(JSON.stringify(proposal.data));
-              newData.client.date = new Date().toISOString().split('T')[0];
-              newData.client.schoolName = `${newData.client.schoolName} (Cópia)`;
-              onLoadProposal(null, newData);
-          }
-      });
   };
 
   const calculateCardValues = (proposalData: AppState) => {
@@ -163,14 +135,6 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNewProposal, onLoadPropo
           freight = needsAssembly ? region.priceAssembly : region.priceSimple;
       }
       return { hasMidia, hasMaker, hasInfantil, totalMaterialYear, totalInfra: infraSum + freight };
-  };
-
-  const formatDateTime = (seconds: number) => {
-      if (!seconds) return 'Data N/A';
-      return new Date(seconds * 1000).toLocaleString('pt-BR', {
-          day: '2-digit', month: '2-digit', year: '2-digit',
-          hour: '2-digit', minute: '2-digit'
-      });
   };
 
   const filteredProposals = proposals.filter(p => 
@@ -226,8 +190,8 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNewProposal, onLoadPropo
             <div className="mb-6 bg-red-50 border border-red-200 text-red-700 p-4 rounded-xl flex items-center gap-3 animate-fade-in">
                 <AlertCircle className="w-5 h-5 shrink-0" />
                 <div className="text-sm">
-                    <p className="font-bold">Atenção: Erro de Permissão no Firebase</p>
-                    <p className="opacity-80">O e-mail {user.email} pode não ter as permissões corretas para ler o banco de dados. Verifique as regras no console.</p>
+                    <p className="font-bold">Erro de Sincronização</p>
+                    <p className="opacity-80">O Firestore retornou: "{fetchError}". Verifique se as regras no console do Firebase foram publicadas corretamente.</p>
                 </div>
             </div>
         )}
@@ -253,7 +217,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNewProposal, onLoadPropo
         ) : filteredProposals.length === 0 ? (
             <div className="text-center py-20 bg-white rounded-2xl shadow-sm border border-slate-100">
                 <FileText className="w-10 h-10 text-slate-300 mx-auto mb-4" />
-                <h3 className="text-lg font-medium text-slate-900">Nenhuma proposta disponível</h3>
+                <h3 className="text-lg font-medium text-slate-900">Nenhuma proposta encontrada</h3>
             </div>
         ) : (
             <div className={viewType === 'grid' ? "grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6" : "bg-white rounded-xl shadow-sm border overflow-hidden"}>
@@ -269,24 +233,19 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNewProposal, onLoadPropo
                                             <h3 className="font-bold text-lg text-slate-800 leading-tight line-clamp-2">{proposal.schoolName || 'Sem nome'}</h3>
                                         </div>
                                         <div className="flex gap-1" onClick={(e) => e.stopPropagation()}>
-                                            <button onClick={(e) => handleDuplicate(e, proposal)} className="text-slate-300 hover:text-blue-500 p-2"><Copy className="w-4 h-4" /></button>
+                                            <button onClick={(e) => { e.stopPropagation(); const newData = JSON.parse(JSON.stringify(proposal.data)); newData.client.schoolName += ' (Cópia)'; onLoadProposal(null, newData); }} className="text-slate-300 hover:text-blue-500 p-2"><Copy className="w-4 h-4" /></button>
                                             {isMaster && <button onClick={(e) => handleDelete(e, proposal.id)} className="text-slate-300 hover:text-red-500 p-2"><Trash2 className="w-4 h-4" /></button>}
                                         </div>
                                     </div>
                                     <div className="flex items-center gap-2 text-sm text-slate-600 mb-3"><GraduationCap className="w-3.5 h-3.5" /><span>{proposal.data?.commercial?.totalStudents || 0} alunos</span></div>
-                                    <div className="flex flex-wrap gap-1 mb-4">
-                                        {stats.hasMaker && <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-blue-50 text-blue-700 border border-blue-100">MAKER</span>}
-                                        {stats.hasMidia && <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-purple-50 text-purple-700 border border-purple-100">MÍDIA</span>}
-                                        {stats.hasInfantil && <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-orange-50 text-orange-700 border border-orange-100">INFANTIL</span>}
-                                    </div>
                                     <div className="bg-slate-50 rounded-lg p-3 space-y-2 text-xs">
                                         <div className="flex justify-between"><span className="text-slate-500">Material/ano:</span><span className="font-bold text-slate-700">{stats.totalMaterialYear.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</span></div>
                                         <div className="flex justify-between"><span className="text-slate-500">Total Infra:</span><span className="font-bold text-slate-700">{stats.totalInfra.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</span></div>
                                     </div>
                                 </div>
                                 <div className="px-5 py-3 bg-slate-50 border-t border-slate-100 flex justify-between items-center text-[10px] text-slate-400">
-                                    <div className="flex items-center gap-1"><Calendar className="w-3 h-3" />{formatDateTime(proposal.updatedAt?.seconds)}</div>
-                                    <div className="italic">Por: {proposal.userEmail ? proposal.userEmail.split('@')[0] : '...'}</div>
+                                    <div className="flex items-center gap-1"><Calendar className="w-3 h-3" />{proposal.updatedAt?.seconds ? new Date(proposal.updatedAt.seconds * 1000).toLocaleDateString('pt-BR') : 'Recente'}</div>
+                                    <div className="italic">{proposal.userEmail ? proposal.userEmail.split('@')[0] : 'Consultor'}</div>
                                 </div>
                             </div>
                         );
@@ -306,7 +265,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNewProposal, onLoadPropo
                                         <td className="px-6 py-4 text-right font-medium">{stats.totalInfra.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</td>
                                         <td className="px-6 py-4 text-center" onClick={(e) => e.stopPropagation()}>
                                             <div className="flex justify-center gap-2">
-                                                <button onClick={(e) => handleDuplicate(e, proposal)} className="p-2 text-slate-400 hover:text-blue-600"><Copy className="w-4 h-4" /></button>
+                                                <button onClick={(e) => { e.stopPropagation(); const newData = JSON.parse(JSON.stringify(proposal.data)); newData.client.schoolName += ' (Cópia)'; onLoadProposal(null, newData); }} className="p-2 text-slate-400 hover:text-blue-600"><Copy className="w-4 h-4" /></button>
                                                 {isMaster && <button onClick={(e) => handleDelete(e, proposal.id)} className="p-2 text-slate-400 hover:text-red-600"><Trash2 className="w-4 h-4" /></button>}
                                             </div>
                                         </td>

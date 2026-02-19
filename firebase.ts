@@ -11,7 +11,7 @@ const firebaseConfig = {
   appId: "1:433956142014:web:e17daba9cf25c0ca0997ef"
 };
 
-// Initialize Firebase without try/catch to ensure type safety for TS
+// Inicialização sem o uso de condicionais que confundem o compilador TS
 const app: FirebaseApp = getApps().length > 0 ? getApp() : initializeApp(firebaseConfig);
 
 export const auth = getAuth(app);
