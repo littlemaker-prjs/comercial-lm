@@ -92,11 +92,15 @@ function App() {
     console.log("Saving proposal...", { isOffline, currentProposalId, userEmail: activeUser.email });
     
     try {
+        // Sanitize data to remove undefined values which Firestore hates
+        // This handles cases where optional fields were explicitly set to undefined in state
+        const cleanData = JSON.parse(JSON.stringify(appState));
+
         const payload = {
             userId: activeUser.uid,
             userEmail: activeUser.email,
             updatedAt: isOffline ? { seconds: Math.floor(Date.now() / 1000) } : firebase.firestore.FieldValue.serverTimestamp(),
-            data: appState,
+            data: cleanData,
             schoolName: appState.client.schoolName || 'Sem nome'
         };
 
