@@ -1,8 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import { collection, query, getDocs, deleteDoc, doc } from 'firebase/firestore';
-import { db, auth } from '../firebase';
+import { db } from '../firebase';
 import { AppState } from '../types';
-import { Plus, Search, FileText, Calendar, Trash2, Edit, Loader2, LogOut, Wifi, WifiOff, User, GraduationCap, Wrench, Coins, Copy, LayoutGrid, List, Clock, ShoppingBag, Percent, AlertTriangle, X, AlertCircle } from 'lucide-react';
+import { Plus, Search, FileText, Calendar, Trash2, Loader2, LogOut, Wifi, WifiOff, GraduationCap, Copy, LayoutGrid, List, AlertTriangle, AlertCircle } from 'lucide-react';
 import { INFRA_CATALOG, REGIONS } from '../constants';
 
 interface SavedProposal {
@@ -60,14 +60,13 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNewProposal, onLoadPropo
             setProposals([]);
         }
       } else {
-        // Busca todas as propostas sem filtro 'where' para evitar necessidade de índices
         const q = query(collection(db, 'proposals'));
         const querySnapshot = await getDocs(q);
         
         const items: SavedProposal[] = [];
         querySnapshot.forEach((doc) => {
             const data = doc.data();
-            // REQUISITO: Qualquer usuário logado vê todas as propostas
+            // REQUISITO: Qualquer usuário logado vê todas as propostas baixadas
             items.push({
                 id: doc.id,
                 userId: data.userId,
@@ -81,10 +80,9 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNewProposal, onLoadPropo
         items.sort((a, b) => (b.updatedAt?.seconds || 0) - (a.updatedAt?.seconds || 0));
         setProposals(items);
       }
-
     } catch (error: any) {
       console.error("Error fetching proposals:", error);
-      setFetchError(error.message || "Erro de permissão ou conexão com o Firebase.");
+      setFetchError(error.message || "Erro de acesso. Verifique suas regras no Firebase.");
     } finally {
       setLoading(false);
     }
@@ -115,7 +113,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNewProposal, onLoadPropo
                 }
             } catch (error) {
                 console.error("Error deleting:", error);
-                alert("Erro ao excluir. Apenas administradores podem realizar esta ação.");
+                alert("Apenas administradores podem excluir propostas no banco de dados.");
             }
         }
     });
@@ -123,7 +121,6 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNewProposal, onLoadPropo
 
   const handleDuplicate = (e: React.MouseEvent, proposal: SavedProposal) => {
       e.stopPropagation();
-
       setModalConfig({
           isOpen: true,
           title: 'Duplicar Proposta',
@@ -139,25 +136,6 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNewProposal, onLoadPropo
       });
   };
 
-  const abbreviateSegments = (segments: string[]) => {
-      if (!segments || segments.length === 0) return 'Nenhum segmento';
-      const map: Record<string, string> = {
-          "Educação Infantil": "EI",
-          "Ens. Fundamental Anos Iniciais": "EFAI",
-          "Ens. Fundamental Anos Finais": "EFAF",
-          "Ensino Médio": "EM"
-      };
-      return segments.map(s => map[s] || s).join(', ');
-  };
-
-  const getBaseMaterialPrice = (students: number) => {
-    if (students >= 800) return 240;
-    if (students >= 400) return 280;
-    if (students >= 200) return 350;
-    if (students >= 100) return 480;
-    return 650; 
-  };
-
   const calculateCardValues = (proposalData: AppState) => {
       if (!proposalData) return { hasMidia: false, hasMaker: false, hasInfantil: false, totalMaterialYear: 0, totalInfra: 0 };
       const selectedIds = proposalData.selectedInfraIds || [];
@@ -166,8 +144,16 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNewProposal, onLoadPropo
       const hasMaker = selectedItems.some(i => i.category === 'maker');
       const hasInfantil = selectedItems.some(i => i.category === 'infantil');
       const students = proposalData.commercial?.totalStudents || 0;
-      const baseMaterialPerStudent = getBaseMaterialPrice(students);
-      const totalMaterialYear = baseMaterialPerStudent * students; 
+      
+      const getBaseMaterialPrice = (s: number) => {
+          if (s >= 800) return 240;
+          if (s >= 400) return 280;
+          if (s >= 200) return 350;
+          if (s >= 100) return 480;
+          return 650;
+      };
+
+      const totalMaterialYear = getBaseMaterialPrice(students) * students; 
       const regionId = proposalData.regionId || 'ate_700';
       const region = REGIONS.find(r => r.id === regionId) || REGIONS[0];
       const infraSum = selectedItems.reduce((sum, i) => sum + i.price, 0);
@@ -187,19 +173,8 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNewProposal, onLoadPropo
       });
   };
 
-  const formatDateOnly = (seconds: number) => {
-      if (!seconds) return 'N/A';
-      return new Date(seconds * 1000).toLocaleDateString('pt-BR');
-  };
-
   const filteredProposals = proposals.filter(p => 
     (p.schoolName || '').toLowerCase().includes(searchTerm.toLowerCase())
-  );
-
-  const BrandLogo = ({ className = "" }: { className?: string }) => (
-    <div className={`relative overflow-hidden ${className}`}>
-        <img src="https://littlemaker.com.br/logo_lm-2/" alt="Little Maker" className="w-full h-full object-contain" />
-    </div>
   );
 
   return (
@@ -231,7 +206,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNewProposal, onLoadPropo
       <header className="text-white p-4 shadow-md bg-[#71477A]">
         <div className="max-w-7xl mx-auto flex justify-between items-center">
           <div className="flex items-center gap-4">
-             <BrandLogo className="h-10 w-auto" />
+             <img src="https://littlemaker.com.br/logo_lm-2/" alt="Little Maker" className="h-10 w-auto" />
              <h1 className="text-xl font-bold border-l border-white/30 pl-4 hidden md:block">Painel Little Maker</h1>
           </div>
           <div className="flex items-center gap-4">
@@ -251,8 +226,8 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNewProposal, onLoadPropo
             <div className="mb-6 bg-red-50 border border-red-200 text-red-700 p-4 rounded-xl flex items-center gap-3 animate-fade-in">
                 <AlertCircle className="w-5 h-5 shrink-0" />
                 <div className="text-sm">
-                    <p className="font-bold">Atenção: Erro de Permissão</p>
-                    <p className="opacity-80">O Firebase bloqueou o acesso. Certifique-se que o e-mail {user.email} foi autorizado nas regras do banco de dados.</p>
+                    <p className="font-bold">Atenção: Erro de Permissão no Firebase</p>
+                    <p className="opacity-80">O e-mail {user.email} pode não ter as permissões corretas para ler o banco de dados. Verifique as regras no console.</p>
                 </div>
             </div>
         )}
@@ -261,7 +236,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNewProposal, onLoadPropo
             <div className="flex items-center gap-4 w-full md:w-auto flex-1">
                 <div className="relative w-full max-w-md">
                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 w-5 h-5" />
-                    <input type="text" placeholder="Buscar por escola..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="w-full pl-10 pr-4 py-3 rounded-xl border border-slate-200 bg-white shadow-sm outline-none" />
+                    <input type="text" placeholder="Buscar escola..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="w-full pl-10 pr-4 py-3 rounded-xl border border-slate-200 bg-white shadow-sm outline-none" />
                 </div>
                 <div className="flex bg-slate-200 rounded-lg p-1 gap-1 shrink-0">
                     <button onClick={() => setViewType('grid')} className={`p-2 rounded-md ${viewType === 'grid' ? 'bg-white shadow text-[#71477A]' : 'text-slate-500'}`}><LayoutGrid className="w-5 h-5" /></button>
@@ -279,76 +254,69 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNewProposal, onLoadPropo
             <div className="text-center py-20 bg-white rounded-2xl shadow-sm border border-slate-100">
                 <FileText className="w-10 h-10 text-slate-300 mx-auto mb-4" />
                 <h3 className="text-lg font-medium text-slate-900">Nenhuma proposta disponível</h3>
-                <p className="text-slate-500 mt-1">Crie uma nova proposta ou verifique sua conexão.</p>
             </div>
         ) : (
-            <>
+            <div className={viewType === 'grid' ? "grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6" : "bg-white rounded-xl shadow-sm border overflow-hidden"}>
                 {viewType === 'grid' ? (
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                        {filteredProposals.map((proposal) => {
-                            const stats = calculateCardValues(proposal.data);
-                            return (
-                                <div key={proposal.id} onClick={() => onLoadProposal(proposal.id, proposal.data)} className="bg-white rounded-xl shadow-sm hover:shadow-lg border border-slate-200 cursor-pointer transition-all group overflow-hidden flex flex-col">
-                                    <div className="p-5 flex-1 relative">
-                                        <div className="flex justify-between items-start mb-2">
-                                            <div className="max-w-[75%]">
-                                                <div className="text-[10px] text-slate-400 font-mono mb-1">ID: {proposal.id.slice(-6)}</div>
-                                                <h3 className="font-bold text-lg text-slate-800 leading-tight line-clamp-2">{proposal.schoolName || 'Sem nome'}</h3>
-                                            </div>
-                                            <div className="flex gap-1" onClick={(e) => e.stopPropagation()}>
-                                                <button onClick={(e) => handleDuplicate(e, proposal)} className="text-slate-300 hover:text-blue-500 p-2"><Copy className="w-4 h-4" /></button>
-                                                {isMaster && <button onClick={(e) => handleDelete(e, proposal.id)} className="text-slate-300 hover:text-red-500 p-2"><Trash2 className="w-4 h-4" /></button>}
-                                            </div>
+                    filteredProposals.map((proposal) => {
+                        const stats = calculateCardValues(proposal.data);
+                        return (
+                            <div key={proposal.id} onClick={() => onLoadProposal(proposal.id, proposal.data)} className="bg-white rounded-xl shadow-sm hover:shadow-lg border border-slate-200 cursor-pointer transition-all group overflow-hidden flex flex-col">
+                                <div className="p-5 flex-1 relative">
+                                    <div className="flex justify-between items-start mb-2">
+                                        <div className="max-w-[75%]">
+                                            <div className="text-[10px] text-slate-400 font-mono mb-1">ID: {proposal.id.slice(-6)}</div>
+                                            <h3 className="font-bold text-lg text-slate-800 leading-tight line-clamp-2">{proposal.schoolName || 'Sem nome'}</h3>
                                         </div>
-                                        <div className="flex items-center gap-2 text-sm text-slate-600 mb-3"><GraduationCap className="w-3.5 h-3.5" /><span>{proposal.data?.commercial?.totalStudents || 0} alunos</span></div>
-                                        <div className="text-xs text-slate-500 line-clamp-1 border-t border-slate-50 pt-2 mb-4">{abbreviateSegments(proposal.data?.client?.segments)}</div>
-                                        <div className="flex flex-wrap gap-1 mb-4">
-                                            {stats.hasMaker && <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-blue-50 text-blue-700 border border-blue-100">MAKER</span>}
-                                            {stats.hasMidia && <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-purple-50 text-purple-700 border border-purple-100">MÍDIA</span>}
-                                            {stats.hasInfantil && <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-orange-50 text-orange-700 border border-orange-100">INFANTIL</span>}
-                                        </div>
-                                        <div className="bg-slate-50 rounded-lg p-3 space-y-2 text-xs">
-                                            <div className="flex justify-between"><span className="text-slate-500">Material/ano:</span><span className="font-bold text-slate-700">{stats.totalMaterialYear.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</span></div>
-                                            <div className="flex justify-between"><span className="text-slate-500">Total Infra:</span><span className="font-bold text-slate-700">{stats.totalInfra.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</span></div>
+                                        <div className="flex gap-1" onClick={(e) => e.stopPropagation()}>
+                                            <button onClick={(e) => handleDuplicate(e, proposal)} className="text-slate-300 hover:text-blue-500 p-2"><Copy className="w-4 h-4" /></button>
+                                            {isMaster && <button onClick={(e) => handleDelete(e, proposal.id)} className="text-slate-300 hover:text-red-500 p-2"><Trash2 className="w-4 h-4" /></button>}
                                         </div>
                                     </div>
-                                    <div className="px-5 py-3 bg-slate-50 border-t border-slate-100 flex justify-between items-center text-[10px] text-slate-400">
-                                        <div className="flex items-center gap-1"><Calendar className="w-3 h-3" />{formatDateTime(proposal.updatedAt?.seconds)}</div>
-                                        <div className="italic">Por: {proposal.userEmail ? proposal.userEmail.split('@')[0] : '...'}</div>
+                                    <div className="flex items-center gap-2 text-sm text-slate-600 mb-3"><GraduationCap className="w-3.5 h-3.5" /><span>{proposal.data?.commercial?.totalStudents || 0} alunos</span></div>
+                                    <div className="flex flex-wrap gap-1 mb-4">
+                                        {stats.hasMaker && <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-blue-50 text-blue-700 border border-blue-100">MAKER</span>}
+                                        {stats.hasMidia && <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-purple-50 text-purple-700 border border-purple-100">MÍDIA</span>}
+                                        {stats.hasInfantil && <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-orange-50 text-orange-700 border border-orange-100">INFANTIL</span>}
+                                    </div>
+                                    <div className="bg-slate-50 rounded-lg p-3 space-y-2 text-xs">
+                                        <div className="flex justify-between"><span className="text-slate-500">Material/ano:</span><span className="font-bold text-slate-700">{stats.totalMaterialYear.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</span></div>
+                                        <div className="flex justify-between"><span className="text-slate-500">Total Infra:</span><span className="font-bold text-slate-700">{stats.totalInfra.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</span></div>
                                     </div>
                                 </div>
-                            );
-                        })}
-                    </div>
+                                <div className="px-5 py-3 bg-slate-50 border-t border-slate-100 flex justify-between items-center text-[10px] text-slate-400">
+                                    <div className="flex items-center gap-1"><Calendar className="w-3 h-3" />{formatDateTime(proposal.updatedAt?.seconds)}</div>
+                                    <div className="italic">Por: {proposal.userEmail ? proposal.userEmail.split('@')[0] : '...'}</div>
+                                </div>
+                            </div>
+                        );
+                    })
                 ) : (
-                    <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
-                        <table className="w-full text-left text-sm">
-                            <thead className="bg-slate-50 text-slate-600 font-bold border-b">
-                                <tr><th className="px-6 py-4">Data</th><th className="px-6 py-4">Escola</th><th className="px-6 py-4 text-center">Alunos</th><th className="px-6 py-4 text-right">Infra</th><th className="px-6 py-4 text-center">Ações</th></tr>
-                            </thead>
-                            <tbody className="divide-y divide-slate-100">
-                                {filteredProposals.map((proposal) => {
-                                    const stats = calculateCardValues(proposal.data);
-                                    return (
-                                        <tr key={proposal.id} onClick={() => onLoadProposal(proposal.id, proposal.data)} className="hover:bg-slate-50 cursor-pointer">
-                                            <td className="px-6 py-4 text-slate-500 whitespace-nowrap">{formatDateOnly(proposal.updatedAt?.seconds)}</td>
-                                            <td className="px-6 py-4 font-bold text-slate-800">{proposal.schoolName || 'Sem nome'}</td>
-                                            <td className="px-6 py-4 text-center">{proposal.data?.commercial?.totalStudents}</td>
-                                            <td className="px-6 py-4 text-right font-medium">{stats.totalInfra.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</td>
-                                            <td className="px-6 py-4 text-center">
-                                                <div className="flex justify-center gap-2" onClick={(e) => e.stopPropagation()}>
-                                                    <button onClick={(e) => handleDuplicate(e, proposal)} className="p-2 text-slate-400 hover:text-blue-600"><Copy className="w-4 h-4" /></button>
-                                                    {isMaster && <button onClick={(e) => handleDelete(e, proposal.id)} className="p-2 text-slate-400 hover:text-red-600"><Trash2 className="w-4 h-4" /></button>}
-                                                </div>
-                                            </td>
-                                        </tr>
-                                    );
-                                })}
-                            </tbody>
-                        </table>
-                    </div>
+                    <table className="w-full text-left text-sm">
+                        <thead className="bg-slate-50 text-slate-600 font-bold border-b">
+                            <tr><th className="px-6 py-4">Escola</th><th className="px-6 py-4 text-center">Alunos</th><th className="px-6 py-4 text-right">Infra</th><th className="px-6 py-4 text-center">Ações</th></tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-100">
+                            {filteredProposals.map((proposal) => {
+                                const stats = calculateCardValues(proposal.data);
+                                return (
+                                    <tr key={proposal.id} onClick={() => onLoadProposal(proposal.id, proposal.data)} className="hover:bg-slate-50 cursor-pointer">
+                                        <td className="px-6 py-4 font-bold text-slate-800">{proposal.schoolName || 'Sem nome'}</td>
+                                        <td className="px-6 py-4 text-center">{proposal.data?.commercial?.totalStudents}</td>
+                                        <td className="px-6 py-4 text-right font-medium">{stats.totalInfra.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</td>
+                                        <td className="px-6 py-4 text-center" onClick={(e) => e.stopPropagation()}>
+                                            <div className="flex justify-center gap-2">
+                                                <button onClick={(e) => handleDuplicate(e, proposal)} className="p-2 text-slate-400 hover:text-blue-600"><Copy className="w-4 h-4" /></button>
+                                                {isMaster && <button onClick={(e) => handleDelete(e, proposal.id)} className="p-2 text-slate-400 hover:text-red-600"><Trash2 className="w-4 h-4" /></button>}
+                                            </div>
+                                        </td>
+                                    </tr>
+                                );
+                            })}
+                        </tbody>
+                    </table>
                 )}
-            </>
+            </div>
         )}
       </main>
     </div>
