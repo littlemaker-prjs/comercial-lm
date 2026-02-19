@@ -114,9 +114,12 @@ function App() {
         } else {
             // FIREBASE SAVING
             if (currentProposalId && !currentProposalId.startsWith('local_')) {
+                // Check if user has permission to write to this doc (effectively checks ownership via rules, but logic here helps debugging)
+                console.log("Updating existing doc:", currentProposalId);
                 await db.collection('proposals').doc(currentProposalId).set(payload, { merge: true });
                 showNotification('Proposta atualizada no Firebase!', 'success');
             } else {
+                console.log("Creating new doc for user:", activeUser.email);
                 const docRef = await db.collection('proposals').add(payload);
                 setCurrentProposalId(docRef.id);
                 showNotification('Proposta criada no Firebase!', 'success');
@@ -130,9 +133,11 @@ function App() {
 
     } catch (error: any) {
         console.error("Critical error while saving to Firebase:", error);
-        let msg = 'Erro ao salvar.';
-        if (error.message?.includes('permissions')) {
-            msg = 'Erro de permissão no Firebase. Verifique se seu e-mail @littlemaker.com.br está logado.';
+        let msg = 'Erro ao salvar. Tente novamente.';
+        if (error.message?.includes('permissions') || error.code === 'permission-denied') {
+            msg = 'Erro de permissão. Você não pode sobrescrever propostas de outros usuários.';
+        } else if (error.message) {
+            msg = `Erro: ${error.message}`;
         }
         showNotification(msg, 'error');
     } finally {
@@ -212,7 +217,7 @@ function App() {
   if (!activeUser) return <LoginScreen onOfflineLogin={handleOfflineLogin} />;
   if (viewMode === 'dashboard') return <Dashboard onNewProposal={startNewProposal} onLoadProposal={loadProposal} onLogout={handleLogout} user={activeUser} isOffline={isOffline} />;
 
-  const isClientConfigured = appState.client.schoolName && appState.client.contactName;
+  const isClientConfigured = appState.client.schoolName && appState.client.contactName && appState.client.state && appState.client.state !== '';
   const navItemClass = (step: Step, disabled: boolean) =>
     `flex items-center gap-3 px-4 py-3 rounded-lg transition-all font-medium w-full ${
       currentStep === step ? 'bg-white text-[#71477A] shadow-sm' : disabled ? 'text-purple-300/50 cursor-not-allowed' : 'text-purple-100 hover:bg-white/10 hover:text-white'

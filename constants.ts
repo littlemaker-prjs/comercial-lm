@@ -242,7 +242,7 @@ export const INITIAL_APP_STATE: AppState = {
     schoolName: '',
     contactName: '',
     date: new Date().toISOString().split('T')[0],
-    state: 'SP', // Default
+    state: '', // Default vazia para forçar seleção
     segments: [],
   },
   regionId: 'ate_700',

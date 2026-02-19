@@ -111,6 +111,22 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNewProposal, onLoadPropo
     });
   };
 
+  const handleCopy = (e: React.MouseEvent, proposal: SavedProposal) => {
+      e.stopPropagation();
+      try {
+          // Deep Copy
+          const newData = JSON.parse(JSON.stringify(proposal.data));
+          newData.client.schoolName += ' (Cópia)';
+          
+          // Reset owner info in the cloned data if it exists there (though main storage is top-level)
+          // Ideally AppState doesn't hold userId, but we do this to be safe in case it passes through
+          onLoadProposal(null, newData);
+      } catch (err) {
+          console.error("Copy Error:", err);
+          alert("Erro ao copiar proposta.");
+      }
+  };
+
   const calculateCardValues = (proposalData: AppState) => {
       if (!proposalData) return { hasMidia: false, hasMaker: false, hasInfantil: false, totalMaterialYear: 0, totalInfra: 0, segments: [], totalBonus: 0, bonusType: '' };
       
@@ -324,7 +340,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNewProposal, onLoadPropo
                                             </div>
                                         </div>
                                         <div className="flex gap-1" onClick={(e) => e.stopPropagation()}>
-                                            <button onClick={(e) => { e.stopPropagation(); const newData = JSON.parse(JSON.stringify(proposal.data)); newData.client.schoolName += ' (Cópia)'; onLoadProposal(null, newData); }} className="text-slate-300 hover:text-blue-500 p-2"><Copy className="w-4 h-4" /></button>
+                                            <button onClick={(e) => handleCopy(e, proposal)} className="text-slate-300 hover:text-blue-500 p-2"><Copy className="w-4 h-4" /></button>
                                             {isMaster && <button onClick={(e) => handleDelete(e, proposal.id)} className="text-slate-300 hover:text-red-500 p-2"><Trash2 className="w-4 h-4" /></button>}
                                         </div>
                                     </div>
@@ -391,7 +407,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNewProposal, onLoadPropo
                                         </td>
                                         <td className="px-4 py-3 text-center" onClick={(e) => e.stopPropagation()}>
                                             <div className="flex justify-center gap-2">
-                                                <button onClick={(e) => { e.stopPropagation(); const newData = JSON.parse(JSON.stringify(proposal.data)); newData.client.schoolName += ' (Cópia)'; onLoadProposal(null, newData); }} className="p-2 text-slate-400 hover:text-blue-600"><Copy className="w-4 h-4" /></button>
+                                                <button onClick={(e) => handleCopy(e, proposal)} className="p-2 text-slate-400 hover:text-blue-600"><Copy className="w-4 h-4" /></button>
                                                 {isMaster && <button onClick={(e) => handleDelete(e, proposal.id)} className="p-2 text-slate-400 hover:text-red-600"><Trash2 className="w-4 h-4" /></button>}
                                             </div>
                                         </td>

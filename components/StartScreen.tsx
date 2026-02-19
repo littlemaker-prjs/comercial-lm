@@ -1,7 +1,7 @@
 
 import React from 'react';
 import { AppState } from '../types';
-import { BRAZIL_STATES } from '../constants';
+import { BRAZIL_STATES, INFRA_CATALOG } from '../constants';
 import { Building2, Calendar, User, ArrowRight, Users, CheckCircle2, FileText, MapPin } from 'lucide-react';
 
 interface StartScreenProps {
@@ -60,14 +60,43 @@ export const StartScreen: React.FC<StartScreenProps> = ({ appState, setAppState,
         const newSegments = currentSegments.includes(segment)
             ? currentSegments.filter(s => s !== segment)
             : [...currentSegments, segment];
+
+        // Logic to check which categories are still valid
+        const hasEI = newSegments.includes("Educação Infantil");
+        const hasEF_EM = newSegments.some(s => [
+            "Ens. Fundamental Anos Iniciais", 
+            "Ens. Fundamental Anos Finais", 
+            "Ensino Médio"
+        ].includes(s));
+
+        let newSelectedInfra = [...prev.selectedInfraIds];
+
+        // If Educação Infantil is NOT selected, remove all 'infantil' items
+        if (!hasEI) {
+            newSelectedInfra = newSelectedInfra.filter(id => {
+                const item = INFRA_CATALOG.find(i => i.id === id);
+                return item?.category !== 'infantil';
+            });
+        }
+
+        // If NO Fundamental/Médio segments are selected, remove all 'maker' and 'midia' items
+        if (!hasEF_EM) {
+            newSelectedInfra = newSelectedInfra.filter(id => {
+                const item = INFRA_CATALOG.find(i => i.id === id);
+                return item?.category !== 'maker' && item?.category !== 'midia';
+            });
+        }
+
         return {
             ...prev,
+            selectedInfraIds: newSelectedInfra,
             client: { ...prev.client, segments: newSegments }
         };
     });
   };
 
-  const isFormValid = client.schoolName && client.contactName && client.date && client.state;
+  // Check if state is selected (not empty)
+  const isFormValid = client.schoolName && client.contactName && client.date && client.state && client.state !== '';
 
   return (
     <div className="h-full flex flex-col bg-slate-50 overflow-hidden">
@@ -169,7 +198,9 @@ export const StartScreen: React.FC<StartScreenProps> = ({ appState, setAppState,
                                 name="state"
                                 value={client.state}
                                 onChange={handleChange}
-                                className="block w-full pl-10 pr-3 py-3 border border-slate-300 rounded-lg focus:ring-[#8BBF56] focus:border-[#8BBF56] transition-colors bg-white text-slate-900"
+                                className={`block w-full pl-10 pr-3 py-3 border rounded-lg focus:ring-[#8BBF56] focus:border-[#8BBF56] transition-colors bg-white ${
+                                    !client.state ? 'border-red-300 text-slate-500' : 'border-slate-300 text-slate-900'
+                                }`}
                             >
                                 <option value="" disabled>Selecione</option>
                                 {BRAZIL_STATES.map(s => (
