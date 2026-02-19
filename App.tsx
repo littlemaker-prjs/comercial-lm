@@ -6,11 +6,10 @@ import { ProposalView } from './components/ProposalView';
 import { LoginScreen } from './components/LoginScreen';
 import { Dashboard } from './components/Dashboard';
 import { AppState } from './types';
-import { INITIAL_APP_STATE, REGIONS } from './constants';
+import { INITIAL_APP_STATE } from './constants';
 import { LayoutDashboard, FileText, User, ArrowLeft, Loader2, Save, CheckCircle, AlertCircle, X } from 'lucide-react';
 import { auth, db } from './firebase';
-import { onAuthStateChanged, User as FirebaseUser, signOut } from 'firebase/auth';
-import { doc, setDoc, addDoc, collection, serverTimestamp } from 'firebase/firestore';
+import firebase from 'firebase/compat/app';
 
 enum Step {
   START = 'start',
@@ -20,7 +19,7 @@ enum Step {
 }
 
 function App() {
-  const [firebaseUser, setFirebaseUser] = useState<FirebaseUser | null>(null);
+  const [firebaseUser, setFirebaseUser] = useState<firebase.User | null>(null);
   const [offlineUser, setOfflineUser] = useState<any | null>(null);
   const [authLoading, setAuthLoading] = useState(true);
 
@@ -35,7 +34,7 @@ function App() {
   const [notification, setNotification] = useState<{message: string, type: 'success' | 'error'} | null>(null);
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (u) => {
+    const unsubscribe = auth.onAuthStateChanged((u) => {
       setFirebaseUser(u);
       setAuthLoading(false);
     });
@@ -50,7 +49,7 @@ function App() {
   }, [notification]);
 
   const handleLogout = () => {
-    if (firebaseUser) signOut(auth);
+    if (firebaseUser) auth.signOut();
     setFirebaseUser(null);
     setOfflineUser(null);
     setViewMode('dashboard');
@@ -95,7 +94,7 @@ function App() {
         const payload = {
             userId: activeUser.uid,
             userEmail: activeUser.email,
-            updatedAt: isOffline ? { seconds: Math.floor(Date.now() / 1000) } : serverTimestamp(),
+            updatedAt: isOffline ? { seconds: Math.floor(Date.now() / 1000) } : firebase.firestore.FieldValue.serverTimestamp(),
             data: appState,
             schoolName: appState.client.schoolName || 'Sem nome'
         };
@@ -114,10 +113,10 @@ function App() {
         } else {
             // FIREBASE SAVING
             if (currentProposalId && !currentProposalId.startsWith('local_')) {
-                await setDoc(doc(db, 'proposals', currentProposalId), payload, { merge: true });
+                await db.collection('proposals').doc(currentProposalId).set(payload, { merge: true });
                 showNotification('Proposta atualizada no Firebase!', 'success');
             } else {
-                const docRef = await addDoc(collection(db, 'proposals'), payload);
+                const docRef = await db.collection('proposals').add(payload);
                 setCurrentProposalId(docRef.id);
                 showNotification('Proposta criada no Firebase!', 'success');
             }

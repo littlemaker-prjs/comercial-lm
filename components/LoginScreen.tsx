@@ -1,5 +1,5 @@
+
 import React, { useState, useEffect } from 'react';
-import { signInWithPopup, signOut } from 'firebase/auth';
 import { auth, googleProvider } from '../firebase';
 import { AlertCircle, Loader2, WifiOff, ArrowRight } from 'lucide-react';
 
@@ -20,11 +20,11 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onOfflineLogin }) => {
     setLoading(true);
 
     try {
-      const result = await signInWithPopup(auth, googleProvider);
+      const result = await auth.signInWithPopup(googleProvider);
       const user = result.user;
 
       if (!user.email?.endsWith('@littlemaker.com.br')) {
-        await signOut(auth);
+        await auth.signOut();
         setError('Acesso restrito. Utilize um e-mail @littlemaker.com.br');
         setLoading(false);
         return;

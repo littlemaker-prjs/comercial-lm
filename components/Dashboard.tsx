@@ -1,8 +1,8 @@
+
 import React, { useEffect, useState } from 'react';
-import { collection, getDocs, deleteDoc, doc } from 'firebase/firestore';
 import { db } from '../firebase';
 import { AppState } from '../types';
-import { Plus, Search, FileText, Calendar, Trash2, Loader2, LogOut, GraduationCap, Copy, LayoutGrid, List, AlertTriangle, AlertCircle } from 'lucide-react';
+import { Plus, Search, FileText, Calendar, Trash2, Loader2, LogOut, GraduationCap, Copy, LayoutGrid, List, AlertTriangle, AlertCircle, ShieldAlert } from 'lucide-react';
 import { INFRA_CATALOG, REGIONS } from '../constants';
 
 interface SavedProposal {
@@ -30,6 +30,8 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNewProposal, onLoadPropo
   const [searchTerm, setSearchTerm] = useState('');
   const [viewType, setViewType] = useState<'grid' | 'list'>('grid');
   const [fetchError, setFetchError] = useState<string | null>(null);
+  const [permissionError, setPermissionError] = useState(false);
+  
   const [modalConfig, setModalConfig] = useState<{
       isOpen: boolean;
       title: string;
@@ -48,6 +50,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNewProposal, onLoadPropo
   const fetchProposals = async () => {
     setLoading(true);
     setFetchError(null);
+    setPermissionError(false);
 
     try {
       if (isOffline) {
@@ -59,8 +62,9 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNewProposal, onLoadPropo
             setProposals([]);
         }
       } else {
-        // Busca simples da coleção - REQUISITO: Ver tudo
-        const querySnapshot = await getDocs(collection(db, 'proposals'));
+        console.log(`Tentando buscar propostas como: ${user.email}`);
+        
+        const querySnapshot = await db.collection('proposals').get();
         
         const items: SavedProposal[] = [];
         querySnapshot.forEach((doc) => {
@@ -79,8 +83,11 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNewProposal, onLoadPropo
         setProposals(items);
       }
     } catch (error: any) {
-      console.error("Erro ao buscar propostas no Firestore:", error);
+      console.error("Erro no Firestore:", error);
       setFetchError(error.message);
+      if (error.code === 'permission-denied' || error.message.includes('permission')) {
+          setPermissionError(true);
+      }
     } finally {
       setLoading(false);
     }
@@ -97,12 +104,12 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNewProposal, onLoadPropo
         onConfirm: async () => {
             try {
                 if (!isOffline) {
-                    await deleteDoc(doc(db, 'proposals', id));
+                    await db.collection('proposals').doc(id).delete();
                 }
                 setProposals(prev => prev.filter(p => p.id !== id));
             } catch (error) {
                 console.error("Delete error:", error);
-                alert("Erro ao excluir. Apenas administradores podem realizar esta ação.");
+                alert("Erro ao excluir. Verifique suas permissões.");
             }
         }
     });
@@ -143,6 +150,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNewProposal, onLoadPropo
 
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col relative">
+      {/* Modal de Confirmação */}
       {modalConfig && modalConfig.isOpen && (
           <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in" onClick={() => setModalConfig(null)}>
               <div className="bg-white rounded-xl shadow-2xl max-w-sm w-full overflow-hidden transform transition-all scale-100" onClick={e => e.stopPropagation()}>
@@ -167,6 +175,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNewProposal, onLoadPropo
           </div>
       )}
 
+      {/* Header */}
       <header className="text-white p-4 shadow-md bg-[#71477A]">
         <div className="max-w-7xl mx-auto flex justify-between items-center">
           <div className="flex items-center gap-4">
@@ -186,16 +195,47 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNewProposal, onLoadPropo
       </header>
 
       <main className="flex-1 max-w-7xl w-full mx-auto p-6 md:p-8">
-        {fetchError && (
-            <div className="mb-6 bg-red-50 border border-red-200 text-red-700 p-4 rounded-xl flex items-center gap-3 animate-fade-in">
-                <AlertCircle className="w-5 h-5 shrink-0" />
-                <div className="text-sm">
-                    <p className="font-bold">Erro de Sincronização</p>
-                    <p className="opacity-80">O Firestore retornou: "{fetchError}". Verifique se as regras no console do Firebase foram publicadas corretamente.</p>
+        
+        {/* Bloco de Erro de Permissão com Solução */}
+        {permissionError && (
+            <div className="mb-8 bg-red-50 border border-red-200 rounded-xl p-6 animate-fade-in shadow-sm">
+                <div className="flex items-start gap-4">
+                    <ShieldAlert className="w-8 h-8 text-red-600 shrink-0" />
+                    <div className="flex-1">
+                        <h3 className="text-lg font-bold text-red-800 mb-2">Acesso Negado pelo Firebase</h3>
+                        <p className="text-red-700 text-sm mb-4">
+                            O banco de dados recusou a conexão. Isso acontece quando as <strong>Regras de Segurança (Rules)</strong> no console do Firebase não permitem que o usuário <strong>{user.email}</strong> leia os dados.
+                        </p>
+                        
+                        <div className="bg-white border border-red-100 rounded-lg p-4">
+                            <p className="text-xs font-bold text-slate-500 uppercase mb-2">Solução: Copie e cole este código no Firebase Console &gt; Firestore Database &gt; Rules</p>
+                            <pre className="bg-slate-900 text-green-400 p-4 rounded text-xs overflow-x-auto font-mono">
+{`rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /{document=**} {
+      allow read, write: if request.auth != null;
+    }
+  }
+}`}
+                            </pre>
+                            <p className="text-[10px] text-slate-400 mt-2">
+                                * Esta regra libera o acesso para qualquer usuário logado. Após colar, clique em <strong>Publish</strong> e aguarde 1 minuto.
+                            </p>
+                        </div>
+                        
+                        <button 
+                            onClick={fetchProposals}
+                            className="mt-4 px-4 py-2 bg-red-600 text-white rounded-lg text-sm font-bold hover:bg-red-700 transition-colors"
+                        >
+                            Tentar Conectar Novamente
+                        </button>
+                    </div>
                 </div>
             </div>
         )}
 
+        {/* Toolbar */}
         <div className="flex flex-col md:flex-row justify-between items-center gap-4 mb-8">
             <div className="flex items-center gap-4 w-full md:w-auto flex-1">
                 <div className="relative w-full max-w-md">
@@ -212,12 +252,14 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNewProposal, onLoadPropo
             </button>
         </div>
 
+        {/* Lista de Propostas */}
         {loading ? (
             <div className="flex justify-center py-20"><Loader2 className="w-10 h-10 text-[#71477A] animate-spin" /></div>
-        ) : filteredProposals.length === 0 ? (
+        ) : filteredProposals.length === 0 && !fetchError ? (
             <div className="text-center py-20 bg-white rounded-2xl shadow-sm border border-slate-100">
                 <FileText className="w-10 h-10 text-slate-300 mx-auto mb-4" />
                 <h3 className="text-lg font-medium text-slate-900">Nenhuma proposta encontrada</h3>
+                <p className="text-slate-500 mt-1 text-sm">Clique em "Nova Proposta" para começar.</p>
             </div>
         ) : (
             <div className={viewType === 'grid' ? "grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6" : "bg-white rounded-xl shadow-sm border overflow-hidden"}>
