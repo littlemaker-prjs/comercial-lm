@@ -3,6 +3,7 @@ export interface ClientInfo {
   schoolName: string;
   contactName: string;
   date: string;
+  state: string; // Novo campo
   segments: string[];
 }
 
@@ -32,7 +33,14 @@ export interface CommercialConfig {
   totalStudents: number;
   contractDuration: 1 | 3;
   useMarketplace: boolean;
-  applyInfraBonus: boolean; // "Usar bônus na infraestrutura"
+  applyInfraBonus: boolean;
+  // Valores manuais definidos pelo Master (opcional)
+  customValues?: {
+    materialPricePerYear?: number;
+    infraTotal?: number;
+    materialBonus?: number;
+    infraBonus?: number;
+  };
 }
 
 // Global App State

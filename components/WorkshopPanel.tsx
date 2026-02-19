@@ -1,7 +1,8 @@
+
 import React from 'react';
 import { AppState, CategoryType, InfraItem } from '../types';
 import { INFRA_CATALOG, REGIONS } from '../constants';
-import { Truck, ArrowRight } from 'lucide-react';
+import { Truck, ArrowRight, AlertCircle } from 'lucide-react';
 
 interface WorkshopPanelProps {
   appState: AppState;
@@ -11,6 +12,7 @@ interface WorkshopPanelProps {
 
 export const WorkshopPanel: React.FC<WorkshopPanelProps> = ({ appState, setAppState, onNext }) => {
   const { regionId, selectedInfraIds } = appState;
+  const segments = appState.client.segments || [];
 
   const toggleItem = (itemId: string, category: CategoryType) => {
     setAppState(prev => {
@@ -203,6 +205,9 @@ export const WorkshopPanel: React.FC<WorkshopPanelProps> = ({ appState, setAppSt
     );
   };
 
+  const hasEI = segments.includes("Educação Infantil");
+  const hasEF = segments.includes("Ens. Fundamental Anos Iniciais") || segments.includes("Ens. Fundamental Anos Finais") || segments.includes("Ensino Médio");
+
   return (
     <div className="h-full flex flex-col bg-slate-50 overflow-hidden">
         {/* Region Selector Header */}
@@ -244,9 +249,28 @@ export const WorkshopPanel: React.FC<WorkshopPanelProps> = ({ appState, setAppSt
         {/* Scrollable Columns */}
         <div className="flex-1 w-full overflow-x-auto overflow-y-hidden">
             <div className="h-full flex gap-6 p-6 min-w-max">
-                {renderCategoryColumn('Mídia Fundamental e Médio', 'midia')}
-                {renderCategoryColumn('Maker Fundamental e Médio', 'maker')}
-                {renderCategoryColumn('Maker Infantil', 'infantil')}
+                {/* 1. Maker Infantil (Somente se EI) */}
+                {hasEI ? renderCategoryColumn('Maker Infantil', 'infantil') : (
+                    <div className="flex-1 min-w-[300px] max-w-[340px] flex items-center justify-center border-2 border-dashed border-slate-200 rounded-lg bg-slate-50/50 text-slate-400 p-8 text-center text-sm">
+                        <div className="flex flex-col items-center gap-2">
+                            <AlertCircle className="w-8 h-8 opacity-50" />
+                            <p>Educação Infantil não selecionada nos Dados do Cliente.</p>
+                        </div>
+                    </div>
+                )}
+                
+                {/* 2. Maker Fundamental (Somente se EFAI/EFAF/EM) */}
+                {hasEF ? renderCategoryColumn('Maker Fundamental e Médio', 'maker') : null}
+                
+                {/* 3. Mídia (Somente se EFAI/EFAF/EM) */}
+                {hasEF ? renderCategoryColumn('Mídia Fundamental e Médio', 'midia') : (
+                     <div className="flex-1 min-w-[300px] max-w-[340px] flex items-center justify-center border-2 border-dashed border-slate-200 rounded-lg bg-slate-50/50 text-slate-400 p-8 text-center text-sm">
+                        <div className="flex flex-col items-center gap-2">
+                            <AlertCircle className="w-8 h-8 opacity-50" />
+                            <p>Ensino Fundamental/Médio não selecionado nos Dados do Cliente.</p>
+                        </div>
+                    </div>
+                )}
             </div>
         </div>
         

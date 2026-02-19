@@ -1,6 +1,8 @@
+
 import React from 'react';
 import { AppState } from '../types';
-import { Building2, Calendar, User, ArrowRight, Users, CheckCircle2, FileText } from 'lucide-react';
+import { BRAZIL_STATES } from '../constants';
+import { Building2, Calendar, User, ArrowRight, Users, CheckCircle2, FileText, MapPin } from 'lucide-react';
 
 interface StartScreenProps {
   appState: AppState;
@@ -18,12 +20,30 @@ const SEGMENT_OPTIONS = [
 export const StartScreen: React.FC<StartScreenProps> = ({ appState, setAppState, onNext }) => {
   const { client, commercial } = appState;
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
-    setAppState(prev => ({
-      ...prev,
-      client: { ...prev.client, [name]: value }
-    }));
+    
+    setAppState(prev => {
+        let updates: any = { [name]: value };
+        
+        // Auto-select region based on State
+        if (name === 'state') {
+            const stateData = BRAZIL_STATES.find(s => s.uf === value);
+            if (stateData) {
+                // Update region ID based on the mapping
+                return {
+                    ...prev,
+                    regionId: stateData.region,
+                    client: { ...prev.client, ...updates }
+                };
+            }
+        }
+
+        return {
+            ...prev,
+            client: { ...prev.client, ...updates }
+        };
+    });
   };
 
   const handleStudentChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -47,7 +67,7 @@ export const StartScreen: React.FC<StartScreenProps> = ({ appState, setAppState,
     });
   };
 
-  const isFormValid = client.schoolName && client.contactName && client.date;
+  const isFormValid = client.schoolName && client.contactName && client.date && client.state;
 
   return (
     <div className="h-full flex flex-col bg-slate-50 overflow-hidden">
@@ -138,19 +158,40 @@ export const StartScreen: React.FC<StartScreenProps> = ({ appState, setAppState,
                     </div>
                 </div>
 
-                <div className="space-y-2">
-                    <label className="block text-sm font-medium text-slate-700">Número Total de Alunos da Proposta</label>
-                    <div className="relative">
-                        <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                        <Users className="h-5 w-5 text-slate-400" />
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div className="space-y-2">
+                        <label className="block text-sm font-medium text-slate-700">Estado (UF)</label>
+                        <div className="relative">
+                            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                            <MapPin className="h-5 w-5 text-slate-400" />
+                            </div>
+                            <select
+                                name="state"
+                                value={client.state}
+                                onChange={handleChange}
+                                className="block w-full pl-10 pr-3 py-3 border border-slate-300 rounded-lg focus:ring-[#8BBF56] focus:border-[#8BBF56] transition-colors bg-white text-slate-900"
+                            >
+                                <option value="" disabled>Selecione</option>
+                                {BRAZIL_STATES.map(s => (
+                                    <option key={s.uf} value={s.uf}>{s.name} ({s.uf})</option>
+                                ))}
+                            </select>
                         </div>
-                        <input
-                        type="number"
-                        value={commercial.totalStudents}
-                        onChange={handleStudentChange}
-                        className="block w-full pl-10 pr-3 py-3 border border-slate-300 rounded-lg focus:ring-[#8BBF56] focus:border-[#8BBF56] transition-colors bg-white text-slate-900"
-                        placeholder="Ex: 250"
-                        />
+                    </div>
+                    <div className="space-y-2">
+                        <label className="block text-sm font-medium text-slate-700">Número Total de Alunos da Proposta</label>
+                        <div className="relative">
+                            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                            <Users className="h-5 w-5 text-slate-400" />
+                            </div>
+                            <input
+                            type="number"
+                            value={commercial.totalStudents}
+                            onChange={handleStudentChange}
+                            className="block w-full pl-10 pr-3 py-3 border border-slate-300 rounded-lg focus:ring-[#8BBF56] focus:border-[#8BBF56] transition-colors bg-white text-slate-900"
+                            placeholder="Ex: 250"
+                            />
+                        </div>
                     </div>
                 </div>
 

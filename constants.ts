@@ -1,12 +1,43 @@
+
 import { InfraItem, Region, AppState } from './types';
 
 export const REGIONS: Region[] = [
   { id: 'ate_700', label: 'Até 700Km', priceSimple: 1500, priceAssembly: 4000 },
   { id: 'sudeste', label: 'Sudeste', priceSimple: 1500, priceAssembly: 8500 },
   { id: 'sul', label: 'Sul', priceSimple: 2500, priceAssembly: 8500 },
-  { id: 'centro_oeste', label: 'Centro-oeste', priceSimple: 2500, priceAssembly: 8500 },
+  { id: 'centro_oeste', label: 'Centro-Oeste', priceSimple: 2500, priceAssembly: 8500 },
   { id: 'nordeste', label: 'Nordeste', priceSimple: 4000, priceAssembly: 15500 },
   { id: 'norte', label: 'Norte', priceSimple: 5000, priceAssembly: 21800 },
+];
+
+export const BRAZIL_STATES = [
+    { uf: 'AC', name: 'Acre', region: 'norte' },
+    { uf: 'AL', name: 'Alagoas', region: 'nordeste' },
+    { uf: 'AP', name: 'Amapá', region: 'norte' },
+    { uf: 'AM', name: 'Amazonas', region: 'norte' },
+    { uf: 'BA', name: 'Bahia', region: 'nordeste' },
+    { uf: 'CE', name: 'Ceará', region: 'nordeste' },
+    { uf: 'DF', name: 'Distrito Federal', region: 'centro_oeste' },
+    { uf: 'ES', name: 'Espírito Santo', region: 'sudeste' },
+    { uf: 'GO', name: 'Goiás', region: 'centro_oeste' },
+    { uf: 'MA', name: 'Maranhão', region: 'nordeste' },
+    { uf: 'MT', name: 'Mato Grosso', region: 'centro_oeste' },
+    { uf: 'MS', name: 'Mato Grosso do Sul', region: 'centro_oeste' },
+    { uf: 'MG', name: 'Minas Gerais', region: 'sudeste' },
+    { uf: 'PA', name: 'Pará', region: 'norte' },
+    { uf: 'PB', name: 'Paraíba', region: 'nordeste' },
+    { uf: 'PR', name: 'Paraná', region: 'sul' },
+    { uf: 'PE', name: 'Pernambuco', region: 'nordeste' },
+    { uf: 'PI', name: 'Piauí', region: 'nordeste' },
+    { uf: 'RJ', name: 'Rio de Janeiro', region: 'sudeste' },
+    { uf: 'RN', name: 'Rio Grande do Norte', region: 'nordeste' },
+    { uf: 'RS', name: 'Rio Grande do Sul', region: 'sul' },
+    { uf: 'RO', name: 'Rondônia', region: 'norte' },
+    { uf: 'RR', name: 'Roraima', region: 'norte' },
+    { uf: 'SC', name: 'Santa Catarina', region: 'sul' },
+    { uf: 'SP', name: 'São Paulo', region: 'ate_700' },
+    { uf: 'SE', name: 'Sergipe', region: 'nordeste' },
+    { uf: 'TO', name: 'Tocantins', region: 'norte' }
 ];
 
 export const INFRA_CATALOG: InfraItem[] = [
@@ -211,6 +242,7 @@ export const INITIAL_APP_STATE: AppState = {
     schoolName: '',
     contactName: '',
     date: new Date().toISOString().split('T')[0],
+    state: 'SP', // Default
     segments: [],
   },
   regionId: 'ate_700',
@@ -219,6 +251,7 @@ export const INITIAL_APP_STATE: AppState = {
     totalStudents: 50,
     contractDuration: 1,
     useMarketplace: false,
-    applyInfraBonus: false
+    applyInfraBonus: false,
+    customValues: {} // Start empty
   }
 };
