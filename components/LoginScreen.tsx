@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { auth, googleProvider } from '../firebase';
 import { AlertCircle, Loader2, WifiOff, ArrowRight } from 'lucide-react';
@@ -22,6 +21,10 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onOfflineLogin }) => {
     try {
       const result = await auth.signInWithPopup(googleProvider);
       const user = result.user;
+
+      if (!user) {
+        throw new Error('Não foi possível obter os dados do usuário.');
+      }
 
       if (!user.email?.endsWith('@littlemaker.com.br')) {
         await auth.signOut();
