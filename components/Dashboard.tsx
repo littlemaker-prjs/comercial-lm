@@ -1,12 +1,13 @@
 import React, { useEffect, useState } from 'react';
-import { collection, query, where, getDocs, deleteDoc, doc } from 'firebase/firestore';
+import { collection, query, getDocs, deleteDoc, doc } from 'firebase/firestore';
 import { db, auth } from '../firebase';
 import { AppState } from '../types';
-import { Plus, Search, FileText, Calendar, Trash2, Edit, Loader2, LogOut, Wifi, WifiOff, User, GraduationCap, Wrench, Coins, Copy, LayoutGrid, List, Clock, ShoppingBag, Percent, AlertTriangle, X } from 'lucide-react';
+import { Plus, Search, FileText, Calendar, Trash2, Edit, Loader2, LogOut, Wifi, WifiOff, User, GraduationCap, Wrench, Coins, Copy, LayoutGrid, List, Clock, ShoppingBag, Percent, AlertTriangle, X, AlertCircle } from 'lucide-react';
 import { INFRA_CATALOG, REGIONS } from '../constants';
 
 interface SavedProposal {
   id: string;
+  userId: string;
   updatedAt: any;
   schoolName: string;
   userEmail?: string;
@@ -28,8 +29,8 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNewProposal, onLoadPropo
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [viewType, setViewType] = useState<'grid' | 'list'>('grid');
+  const [fetchError, setFetchError] = useState<string | null>(null);
 
-  // Custom Modal State
   const [modalConfig, setModalConfig] = useState<{
       isOpen: boolean;
       title: string;
@@ -39,7 +40,6 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNewProposal, onLoadPropo
       onConfirm: () => void;
   } | null>(null);
 
-  // Check if current user is master (Valid in Online AND Offline for testing)
   const isMaster = user?.email?.toLowerCase() === MASTER_EMAIL.toLowerCase();
 
   useEffect(() => {
@@ -48,10 +48,10 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNewProposal, onLoadPropo
 
   const fetchProposals = async () => {
     setLoading(true);
+    setFetchError(null);
 
     try {
       if (isOffline) {
-        // --- OFFLINE FETCH ---
         const localData = localStorage.getItem('offline_proposals');
         if (localData) {
             let parsed = JSON.parse(localData);
@@ -60,17 +60,19 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNewProposal, onLoadPropo
             setProposals([]);
         }
       } else {
-        // --- FIREBASE FETCH ---
+        // Busca todas as propostas sem filtro 'where' para evitar necessidade de índices
         const q = query(collection(db, 'proposals'));
-        
         const querySnapshot = await getDocs(q);
+        
         const items: SavedProposal[] = [];
         querySnapshot.forEach((doc) => {
             const data = doc.data();
+            // REQUISITO: Qualquer usuário logado vê todas as propostas
             items.push({
                 id: doc.id,
+                userId: data.userId,
                 updatedAt: data.updatedAt,
-                schoolName: data.data.client?.schoolName || data.schoolName || 'Sem nome',
+                schoolName: data.data?.client?.schoolName || data.schoolName || 'Sem nome',
                 userEmail: data.userEmail,
                 data: data.data as AppState
             });
@@ -80,8 +82,9 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNewProposal, onLoadPropo
         setProposals(items);
       }
 
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error fetching proposals:", error);
+      setFetchError(error.message || "Erro de permissão ou conexão com o Firebase.");
     } finally {
       setLoading(false);
     }
@@ -112,6 +115,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNewProposal, onLoadPropo
                 }
             } catch (error) {
                 console.error("Error deleting:", error);
+                alert("Erro ao excluir. Apenas administradores podem realizar esta ação.");
             }
         }
     });
@@ -137,14 +141,12 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNewProposal, onLoadPropo
 
   const abbreviateSegments = (segments: string[]) => {
       if (!segments || segments.length === 0) return 'Nenhum segmento';
-      
       const map: Record<string, string> = {
           "Educação Infantil": "EI",
           "Ens. Fundamental Anos Iniciais": "EFAI",
           "Ens. Fundamental Anos Finais": "EFAF",
           "Ensino Médio": "EM"
       };
-
       return segments.map(s => map[s] || s).join(', ');
   };
 
@@ -157,35 +159,24 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNewProposal, onLoadPropo
   };
 
   const calculateCardValues = (proposalData: AppState) => {
+      if (!proposalData) return { hasMidia: false, hasMaker: false, hasInfantil: false, totalMaterialYear: 0, totalInfra: 0 };
       const selectedIds = proposalData.selectedInfraIds || [];
       const selectedItems = INFRA_CATALOG.filter(i => selectedIds.includes(i.id));
-      
-      // Categories detected
       const hasMidia = selectedItems.some(i => i.category === 'midia');
       const hasMaker = selectedItems.some(i => i.category === 'maker');
       const hasInfantil = selectedItems.some(i => i.category === 'infantil');
-      
-      // Financials
-      const students = proposalData.commercial.totalStudents || 0;
+      const students = proposalData.commercial?.totalStudents || 0;
       const baseMaterialPerStudent = getBaseMaterialPrice(students);
-      const totalMaterialYear = baseMaterialPerStudent * students; // Calculation: Total per Year
-      
+      const totalMaterialYear = baseMaterialPerStudent * students; 
       const regionId = proposalData.regionId || 'ate_700';
       const region = REGIONS.find(r => r.id === regionId) || REGIONS[0];
-      
       const infraSum = selectedItems.reduce((sum, i) => sum + i.price, 0);
       let freight = 0;
       if (selectedItems.length > 0) {
           const needsAssembly = selectedItems.some(i => i.requiresAssembly);
           freight = needsAssembly ? region.priceAssembly : region.priceSimple;
       }
-      const totalInfra = infraSum + freight;
-
-      return {
-          hasMidia, hasMaker, hasInfantil,
-          totalMaterialYear, 
-          totalInfra
-      };
+      return { hasMidia, hasMaker, hasInfantil, totalMaterialYear, totalInfra: infraSum + freight };
   };
 
   const formatDateTime = (seconds: number) => {
@@ -207,17 +198,12 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNewProposal, onLoadPropo
 
   const BrandLogo = ({ className = "" }: { className?: string }) => (
     <div className={`relative overflow-hidden ${className}`}>
-        <img 
-            src="https://littlemaker.com.br/logo_lm-2/"
-            alt="Little Maker"
-            className="w-full h-full object-contain object-center"
-        />
+        <img src="https://littlemaker.com.br/logo_lm-2/" alt="Little Maker" className="w-full h-full object-contain" />
     </div>
   );
 
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col relative">
-      {/* Custom Modal for Confirmations */}
       {modalConfig && modalConfig.isOpen && (
           <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in" onClick={() => setModalConfig(null)}>
               <div className="bg-white rounded-xl shadow-2xl max-w-sm w-full overflow-hidden transform transition-all scale-100" onClick={e => e.stopPropagation()}>
@@ -228,28 +214,12 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNewProposal, onLoadPropo
                           </div>
                           <div>
                               <h3 className="text-lg font-bold text-slate-900 leading-tight mb-1">{modalConfig.title}</h3>
-                              <p className="text-slate-500 text-sm leading-relaxed">{modalConfig.message}</p>
+                              <p className="text-slate-500 text-sm">{modalConfig.message}</p>
                           </div>
                       </div>
-                      
                       <div className="flex justify-end gap-3 mt-6">
-                          <button 
-                              onClick={() => setModalConfig(null)}
-                              className="px-4 py-2 text-slate-600 font-medium hover:bg-slate-100 rounded-lg transition-colors text-sm"
-                          >
-                              Cancelar
-                          </button>
-                          <button 
-                              onClick={() => {
-                                  modalConfig.onConfirm();
-                                  setModalConfig(null);
-                              }}
-                              className={`px-4 py-2 text-white font-bold rounded-lg shadow-sm transition-all transform hover:-translate-y-0.5 text-sm ${
-                                  modalConfig.isDestructive 
-                                  ? 'bg-red-600 hover:bg-red-700' 
-                                  : 'bg-[#71477A] hover:bg-[#5d3a64]'
-                              }`}
-                          >
+                          <button onClick={() => setModalConfig(null)} className="px-4 py-2 text-slate-600 text-sm">Cancelar</button>
+                          <button onClick={() => { modalConfig.onConfirm(); setModalConfig(null); }} className={`px-4 py-2 text-white font-bold rounded-lg text-sm ${modalConfig.isDestructive ? 'bg-red-600 hover:bg-red-700' : 'bg-[#71477A] hover:bg-[#5d3a64]'}`}>
                               {modalConfig.confirmLabel}
                           </button>
                       </div>
@@ -258,295 +228,124 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNewProposal, onLoadPropo
           </div>
       )}
 
-      {/* Header */}
       <header className="text-white p-4 shadow-md bg-[#71477A]">
         <div className="max-w-7xl mx-auto flex justify-between items-center">
           <div className="flex items-center gap-4">
-             <div className="p-1">
-                <BrandLogo className="h-12 w-auto" />
-             </div>
-             <h1 className="text-xl font-bold border-l border-white/30 pl-4 hidden md:block">
-                 {isOffline ? 'Painel de Propostas (Modo Visitante)' : 'Painel de Propostas'}
-             </h1>
+             <BrandLogo className="h-10 w-auto" />
+             <h1 className="text-xl font-bold border-l border-white/30 pl-4 hidden md:block">Painel Little Maker</h1>
           </div>
           <div className="flex items-center gap-4">
-            <div className="hidden md:flex flex-col items-end mr-2">
-                <span className="text-sm font-medium">{user.displayName || user.email || 'Usuário'}</span>
-                <span className="text-xs opacity-70 flex items-center gap-1">
-                    {isOffline ? <><WifiOff className="w-3 h-3"/> Offline</> : <><Wifi className="w-3 h-3"/> Online</>}
+            <div className="hidden md:flex flex-col items-end mr-2 text-right">
+                <span className="text-sm font-medium">{user.email}</span>
+                <span className="text-[10px] opacity-70 flex items-center gap-1">
+                    {isMaster ? 'ADMIN MASTER' : 'CONSULTOR'} • {isOffline ? 'OFFLINE' : 'ONLINE'}
                 </span>
             </div>
-            <button 
-                onClick={onLogout}
-                className="p-2 hover:bg-white/10 rounded-full transition-colors flex items-center gap-2" 
-                title="Sair"
-            >
-                <LogOut className="w-5 h-5" />
-            </button>
+            <button onClick={onLogout} className="p-2 hover:bg-white/10 rounded-full transition-colors"><LogOut className="w-5 h-5" /></button>
           </div>
         </div>
       </header>
 
-      {/* Main Content */}
       <main className="flex-1 max-w-7xl w-full mx-auto p-6 md:p-8">
-        
-        {/* Actions Bar */}
+        {fetchError && (
+            <div className="mb-6 bg-red-50 border border-red-200 text-red-700 p-4 rounded-xl flex items-center gap-3 animate-fade-in">
+                <AlertCircle className="w-5 h-5 shrink-0" />
+                <div className="text-sm">
+                    <p className="font-bold">Atenção: Erro de Permissão</p>
+                    <p className="opacity-80">O Firebase bloqueou o acesso. Certifique-se que o e-mail {user.email} foi autorizado nas regras do banco de dados.</p>
+                </div>
+            </div>
+        )}
+
         <div className="flex flex-col md:flex-row justify-between items-center gap-4 mb-8">
             <div className="flex items-center gap-4 w-full md:w-auto flex-1">
                 <div className="relative w-full max-w-md">
                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 w-5 h-5" />
-                    <input 
-                        type="text" 
-                        placeholder="Buscar por nome da escola..." 
-                        value={searchTerm}
-                        onChange={(e) => setSearchTerm(e.target.value)}
-                        className="w-full pl-10 pr-4 py-3 rounded-xl border border-slate-200 bg-slate-100 text-slate-900 focus:ring-2 focus:ring-[#71477A] focus:bg-white focus:border-transparent outline-none shadow-sm transition-colors"
-                    />
+                    <input type="text" placeholder="Buscar por escola..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="w-full pl-10 pr-4 py-3 rounded-xl border border-slate-200 bg-white shadow-sm outline-none" />
                 </div>
-                
-                {/* View Toggles */}
                 <div className="flex bg-slate-200 rounded-lg p-1 gap-1 shrink-0">
-                    <button 
-                        onClick={() => setViewType('grid')}
-                        className={`p-2 rounded-md transition-all ${viewType === 'grid' ? 'bg-white shadow text-[#71477A]' : 'text-slate-500 hover:text-slate-700'}`}
-                        title="Visualização em Grade"
-                    >
-                        <LayoutGrid className="w-5 h-5" />
-                    </button>
-                    <button 
-                        onClick={() => setViewType('list')}
-                        className={`p-2 rounded-md transition-all ${viewType === 'list' ? 'bg-white shadow text-[#71477A]' : 'text-slate-500 hover:text-slate-700'}`}
-                        title="Visualização em Lista"
-                    >
-                        <List className="w-5 h-5" />
-                    </button>
+                    <button onClick={() => setViewType('grid')} className={`p-2 rounded-md ${viewType === 'grid' ? 'bg-white shadow text-[#71477A]' : 'text-slate-500'}`}><LayoutGrid className="w-5 h-5" /></button>
+                    <button onClick={() => setViewType('list')} className={`p-2 rounded-md ${viewType === 'list' ? 'bg-white shadow text-[#71477A]' : 'text-slate-500'}`}><List className="w-5 h-5" /></button>
                 </div>
             </div>
-            
-            <button 
-                onClick={onNewProposal}
-                className="w-full md:w-auto bg-[#8BBF56] text-white px-6 py-3 rounded-xl font-bold hover:bg-[#7aa84b] transition-all shadow-md flex items-center justify-center gap-2 transform hover:-translate-y-0.5"
-            >
-                <Plus className="w-5 h-5" />
-                Nova Proposta
+            <button onClick={onNewProposal} className="w-full md:w-auto bg-[#8BBF56] text-white px-6 py-3 rounded-xl font-bold hover:bg-[#7aa84b] transition-all shadow-md flex items-center justify-center gap-2">
+                <Plus className="w-5 h-5" />Nova Proposta
             </button>
         </div>
 
-        {/* Content */}
         {loading ? (
-            <div className="flex justify-center py-20">
-                <Loader2 className="w-10 h-10 text-[#71477A] animate-spin" />
-            </div>
+            <div className="flex justify-center py-20"><Loader2 className="w-10 h-10 text-[#71477A] animate-spin" /></div>
         ) : filteredProposals.length === 0 ? (
             <div className="text-center py-20 bg-white rounded-2xl shadow-sm border border-slate-100">
-                <div className="bg-slate-50 w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-4">
-                    <FileText className="w-10 h-10 text-slate-300" />
-                </div>
-                <h3 className="text-lg font-medium text-slate-900">Nenhuma proposta encontrada</h3>
-                <p className="text-slate-500 mt-1">Crie uma nova proposta para começar.</p>
+                <FileText className="w-10 h-10 text-slate-300 mx-auto mb-4" />
+                <h3 className="text-lg font-medium text-slate-900">Nenhuma proposta disponível</h3>
+                <p className="text-slate-500 mt-1">Crie uma nova proposta ou verifique sua conexão.</p>
             </div>
         ) : (
             <>
                 {viewType === 'grid' ? (
-                    // --- GRID VIEW ---
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                         {filteredProposals.map((proposal) => {
                             const stats = calculateCardValues(proposal.data);
-                            // Permission: Master deletes ALL. Owner deletes OWN.
-                            const canDelete = isMaster || (proposal.userEmail === user.email);
-
-                            // Commercial Flags
-                            const isThreeYears = proposal.data.commercial.contractDuration === 3;
-                            const isMarketplace = proposal.data.commercial.useMarketplace;
-                            const isBonus = proposal.data.commercial.applyInfraBonus;
-
                             return (
-                                <div 
-                                    key={proposal.id}
-                                    onClick={() => onLoadProposal(proposal.id, proposal.data)}
-                                    className="bg-white rounded-xl shadow-sm hover:shadow-lg hover:-translate-y-1 border border-slate-200 cursor-pointer transition-all group relative overflow-hidden flex flex-col isolate"
-                                >
-                                    <div className={`absolute top-0 left-0 w-1 h-full ${isOffline ? 'bg-slate-400' : 'bg-[#71477A]'} group-hover:w-2 transition-all`}></div>
-                                    
+                                <div key={proposal.id} onClick={() => onLoadProposal(proposal.id, proposal.data)} className="bg-white rounded-xl shadow-sm hover:shadow-lg border border-slate-200 cursor-pointer transition-all group overflow-hidden flex flex-col">
                                     <div className="p-5 flex-1 relative">
-                                        <div className="flex justify-between items-start mb-2 pl-2">
-                                            <div>
-                                                <div className="text-[10px] text-slate-400 font-mono mb-1">ID: {proposal.id.slice(0, 8)}...</div>
-                                                <h3 className="font-bold text-lg text-slate-800 leading-tight line-clamp-2">
-                                                    {proposal.schoolName || 'Sem nome'}
-                                                </h3>
+                                        <div className="flex justify-between items-start mb-2">
+                                            <div className="max-w-[75%]">
+                                                <div className="text-[10px] text-slate-400 font-mono mb-1">ID: {proposal.id.slice(-6)}</div>
+                                                <h3 className="font-bold text-lg text-slate-800 leading-tight line-clamp-2">{proposal.schoolName || 'Sem nome'}</h3>
                                             </div>
-                                            
-                                            {/* Action Buttons */}
-                                            <div 
-                                                className="flex gap-1 z-50 relative" 
-                                                onClick={(e) => e.stopPropagation()}
-                                            >
-                                                <button 
-                                                    onClick={(e) => handleDuplicate(e, proposal)}
-                                                    className="text-slate-300 hover:text-blue-500 p-2 hover:bg-blue-50 rounded transition-colors"
-                                                    title="Duplicar"
-                                                >
-                                                    <Copy className="w-4 h-4" />
-                                                </button>
-                                                {canDelete && (
-                                                    <button 
-                                                        onClick={(e) => handleDelete(e, proposal.id)}
-                                                        className="text-slate-300 hover:text-red-500 p-2 hover:bg-red-50 rounded transition-colors"
-                                                        title="Excluir"
-                                                    >
-                                                        <Trash2 className="w-4 h-4" />
-                                                    </button>
-                                                )}
+                                            <div className="flex gap-1" onClick={(e) => e.stopPropagation()}>
+                                                <button onClick={(e) => handleDuplicate(e, proposal)} className="text-slate-300 hover:text-blue-500 p-2"><Copy className="w-4 h-4" /></button>
+                                                {isMaster && <button onClick={(e) => handleDelete(e, proposal.id)} className="text-slate-300 hover:text-red-500 p-2"><Trash2 className="w-4 h-4" /></button>}
                                             </div>
                                         </div>
-
-                                        {/* Students Only */}
-                                        <div className="pl-2 mb-3">
-                                            <div className="flex items-center gap-2 text-sm text-slate-600">
-                                                <GraduationCap className="w-3.5 h-3.5" />
-                                                <span>{proposal.data.commercial.totalStudents || 0} alunos</span>
-                                            </div>
-                                        </div>
-
-                                        {/* Segments (Abbreviated) */}
-                                        <div className="pl-2 mb-4 text-xs text-slate-500 line-clamp-1 border-t border-slate-50 pt-2">
-                                            {abbreviateSegments(proposal.data.client.segments)}
-                                        </div>
-
-                                        {/* Badges: Infra Types */}
-                                        <div className="pl-2 flex flex-wrap gap-1 mb-4">
+                                        <div className="flex items-center gap-2 text-sm text-slate-600 mb-3"><GraduationCap className="w-3.5 h-3.5" /><span>{proposal.data?.commercial?.totalStudents || 0} alunos</span></div>
+                                        <div className="text-xs text-slate-500 line-clamp-1 border-t border-slate-50 pt-2 mb-4">{abbreviateSegments(proposal.data?.client?.segments)}</div>
+                                        <div className="flex flex-wrap gap-1 mb-4">
                                             {stats.hasMaker && <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-blue-50 text-blue-700 border border-blue-100">MAKER</span>}
                                             {stats.hasMidia && <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-purple-50 text-purple-700 border border-purple-100">MÍDIA</span>}
                                             {stats.hasInfantil && <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-orange-50 text-orange-700 border border-orange-100">INFANTIL</span>}
-                                            {!stats.hasMaker && !stats.hasMidia && !stats.hasInfantil && (
-                                                <span className="px-2 py-0.5 rounded text-[10px] font-medium bg-slate-100 text-slate-400">Sem Infra</span>
-                                            )}
                                         </div>
-
-                                        {/* Badges: Commercial Flags (Grid Only) */}
-                                        <div className="pl-2 flex flex-wrap gap-2 mb-4 text-[10px] text-slate-600 font-medium">
-                                            {isThreeYears && (
-                                                <div className="flex items-center gap-1 bg-yellow-50 text-yellow-800 px-2 py-1 rounded border border-yellow-100" title="Contrato de 3 Anos">
-                                                    <Clock className="w-3 h-3" /> 3 Anos
-                                                </div>
-                                            )}
-                                            {isMarketplace && (
-                                                <div className="flex items-center gap-1 bg-emerald-50 text-emerald-800 px-2 py-1 rounded border border-emerald-100" title="Market Place">
-                                                    <ShoppingBag className="w-3 h-3" /> Mkt Place
-                                                </div>
-                                            )}
-                                            {isBonus && (
-                                                <div className="flex items-center gap-1 bg-indigo-50 text-indigo-800 px-2 py-1 rounded border border-indigo-100" title="Bônus Infra">
-                                                    <Percent className="w-3 h-3" /> % Bônus Infra
-                                                </div>
-                                            )}
-                                        </div>
-                                    
-                                        {/* Financials */}
-                                        <div className="pl-2 bg-slate-50 rounded-lg p-3 space-y-2">
-                                            <div className="flex justify-between items-center text-xs">
-                                                <span className="text-slate-500">Material (ano):</span>
-                                                <span className="font-bold text-slate-700">{stats.totalMaterialYear.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</span>
-                                            </div>
-                                            <div className="flex justify-between items-center text-xs">
-                                                <span className="text-slate-500">Total Infra:</span>
-                                                <span className="font-bold text-slate-700">{stats.totalInfra.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</span>
-                                            </div>
+                                        <div className="bg-slate-50 rounded-lg p-3 space-y-2 text-xs">
+                                            <div className="flex justify-between"><span className="text-slate-500">Material/ano:</span><span className="font-bold text-slate-700">{stats.totalMaterialYear.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</span></div>
+                                            <div className="flex justify-between"><span className="text-slate-500">Total Infra:</span><span className="font-bold text-slate-700">{stats.totalInfra.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</span></div>
                                         </div>
                                     </div>
-
-                                    {/* Footer: Date & Creator */}
-                                    <div className="px-5 py-3 bg-slate-50 border-t border-slate-100 flex justify-between items-center text-[10px] text-slate-400 pl-7">
-                                        <div className="flex items-center gap-1" title={formatDateTime(proposal.updatedAt?.seconds)}>
-                                            <Calendar className="w-3 h-3" />
-                                            {formatDateTime(proposal.updatedAt?.seconds)}
-                                        </div>
-                                        <div className="italic truncate max-w-[100px]" title={proposal.userEmail || 'Desconhecido'}>
-                                            Por: {proposal.userEmail ? proposal.userEmail.split('@')[0] : '...'}
-                                        </div>
+                                    <div className="px-5 py-3 bg-slate-50 border-t border-slate-100 flex justify-between items-center text-[10px] text-slate-400">
+                                        <div className="flex items-center gap-1"><Calendar className="w-3 h-3" />{formatDateTime(proposal.updatedAt?.seconds)}</div>
+                                        <div className="italic">Por: {proposal.userEmail ? proposal.userEmail.split('@')[0] : '...'}</div>
                                     </div>
                                 </div>
                             );
                         })}
                     </div>
                 ) : (
-                    // --- LIST VIEW ---
                     <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
-                        <div className="overflow-x-auto">
-                            <table className="w-full text-left text-sm">
-                                <thead className="bg-slate-50 text-slate-600 font-bold border-b border-slate-200">
-                                    <tr>
-                                        <th className="px-6 py-4">Data</th>
-                                        <th className="px-6 py-4">ID</th>
-                                        <th className="px-6 py-4">Escola / Segmentos</th>
-                                        <th className="px-6 py-4 text-center">Alunos</th>
-                                        <th className="px-6 py-4 text-right">Material (Ano)</th>
-                                        <th className="px-6 py-4 text-right">Infra Total</th>
-                                        <th className="px-6 py-4 text-center">Ações</th>
-                                    </tr>
-                                </thead>
-                                <tbody className="divide-y divide-slate-100">
-                                    {filteredProposals.map((proposal) => {
-                                        const stats = calculateCardValues(proposal.data);
-                                        const canDelete = isMaster || (proposal.userEmail === user.email);
-
-                                        return (
-                                            <tr 
-                                                key={proposal.id} 
-                                                onClick={() => onLoadProposal(proposal.id, proposal.data)}
-                                                className="hover:bg-slate-50 transition-colors cursor-pointer group"
-                                            >
-                                                <td className="px-6 py-4 text-slate-500 whitespace-nowrap">
-                                                    {formatDateOnly(proposal.updatedAt?.seconds)}
-                                                </td>
-                                                <td className="px-6 py-4 text-slate-400 font-mono text-xs select-all">
-                                                    {proposal.id.slice(0, 8)}...
-                                                </td>
-                                                <td className="px-6 py-4">
-                                                    <div className="font-bold text-slate-800">{proposal.schoolName || 'Sem nome'}</div>
-                                                    <div className="text-xs text-slate-500">
-                                                        {abbreviateSegments(proposal.data.client.segments)}
-                                                    </div>
-                                                </td>
-                                                <td className="px-6 py-4 text-center text-slate-700">
-                                                    {proposal.data.commercial.totalStudents}
-                                                </td>
-                                                <td className="px-6 py-4 text-right text-slate-700 font-medium">
-                                                    {stats.totalMaterialYear.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
-                                                </td>
-                                                <td className="px-6 py-4 text-right text-slate-700 font-medium">
-                                                    {stats.totalInfra.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
-                                                </td>
-                                                <td className="px-6 py-4 text-center">
-                                                    <div 
-                                                        className="flex items-center justify-center gap-2"
-                                                        onClick={(e) => e.stopPropagation()} 
-                                                    >
-                                                        <button 
-                                                            onClick={(e) => handleDuplicate(e, proposal)}
-                                                            className="p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded transition-colors"
-                                                            title="Duplicar"
-                                                        >
-                                                            <Copy className="w-4 h-4" />
-                                                        </button>
-                                                        {canDelete && (
-                                                            <button 
-                                                                onClick={(e) => handleDelete(e, proposal.id)}
-                                                                className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors"
-                                                                title="Excluir"
-                                                            >
-                                                                <Trash2 className="w-4 h-4" />
-                                                            </button>
-                                                        )}
-                                                    </div>
-                                                </td>
-                                            </tr>
-                                        );
-                                    })}
-                                </tbody>
-                            </table>
-                        </div>
+                        <table className="w-full text-left text-sm">
+                            <thead className="bg-slate-50 text-slate-600 font-bold border-b">
+                                <tr><th className="px-6 py-4">Data</th><th className="px-6 py-4">Escola</th><th className="px-6 py-4 text-center">Alunos</th><th className="px-6 py-4 text-right">Infra</th><th className="px-6 py-4 text-center">Ações</th></tr>
+                            </thead>
+                            <tbody className="divide-y divide-slate-100">
+                                {filteredProposals.map((proposal) => {
+                                    const stats = calculateCardValues(proposal.data);
+                                    return (
+                                        <tr key={proposal.id} onClick={() => onLoadProposal(proposal.id, proposal.data)} className="hover:bg-slate-50 cursor-pointer">
+                                            <td className="px-6 py-4 text-slate-500 whitespace-nowrap">{formatDateOnly(proposal.updatedAt?.seconds)}</td>
+                                            <td className="px-6 py-4 font-bold text-slate-800">{proposal.schoolName || 'Sem nome'}</td>
+                                            <td className="px-6 py-4 text-center">{proposal.data?.commercial?.totalStudents}</td>
+                                            <td className="px-6 py-4 text-right font-medium">{stats.totalInfra.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</td>
+                                            <td className="px-6 py-4 text-center">
+                                                <div className="flex justify-center gap-2" onClick={(e) => e.stopPropagation()}>
+                                                    <button onClick={(e) => handleDuplicate(e, proposal)} className="p-2 text-slate-400 hover:text-blue-600"><Copy className="w-4 h-4" /></button>
+                                                    {isMaster && <button onClick={(e) => handleDelete(e, proposal.id)} className="p-2 text-slate-400 hover:text-red-600"><Trash2 className="w-4 h-4" /></button>}
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    );
+                                })}
+                            </tbody>
+                        </table>
                     </div>
                 )}
             </>
