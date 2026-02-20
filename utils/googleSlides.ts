@@ -10,9 +10,17 @@ const BLACK = { red: 0, green: 0, blue: 0 };
 const GRAY = { red: 0.4, green: 0.4, blue: 0.4 };
 const GRAY_LIGHT = { red: 0.95, green: 0.95, blue: 0.95 };
 
-// IMPORTANT: Google Slides API REQUIRES a public URL. It cannot access 'assets/...' or local files.
-// To use your logo, upload 'logo_lm.png' to Firebase Storage or a public server and paste the URL here.
-const LOGO_URL = "https://placehold.co/200x60/transparent/71477A.png?text=LITTLE+MAKER";
+// Helper to get public URL
+const getLogoUrl = () => {
+    // Google Slides API cannot access localhost.
+    // If running locally, use a placeholder.
+    if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+        console.warn("Google Slides API cannot access localhost images. Using placeholder for Logo.");
+        return "https://placehold.co/200x60/transparent/71477A.png?text=LITTLE+MAKER";
+    }
+    // In production, assume 'logo_lm.png' is in 'public/images/' folder
+    return `${window.location.origin}/images/logo_lm.png`;
+};
 
 export const createGoogleSlidePresentation = async (
   accessToken: string,
@@ -20,6 +28,7 @@ export const createGoogleSlidePresentation = async (
   calculations: any
 ) => {
   const { client, commercial } = appState;
+  const LOGO_URL = getLogoUrl();
   
   // 1. Create Presentation
   const createRes = await fetch('https://slides.googleapis.com/v1/presentations', {
@@ -98,7 +107,7 @@ export const createGoogleSlidePresentation = async (
           foregroundColor: { opaqueColor: { rgbColor: color } },
           bold: bold
         },
-        fields: 'foregroundColor,bold,fontFamily,fontSize' // Fields MUST be here, outside 'style'
+        fields: 'foregroundColor,bold,fontFamily,fontSize' // IMPORTANT: fields is a sibling of style
       }
     });
 
@@ -198,11 +207,12 @@ export const createGoogleSlidePresentation = async (
   requests.push({
     createTable: {
         objectId: tableId1,
-        // pageObjectId MUST be inside elementProperties
+        // IMPORTANT: pageObjectId MUST be inside elementProperties for createTable
         elementProperties: {
             pageObjectId: valuesId,
             transform: { scaleX: 1, scaleY: 1, translateX: 30, translateY: 120, unit: 'PT' },
-            size: { width: { magnitude: 300, unit: 'PT' } } // Height autosizes
+            // FIX: Height is required by API even if autosizing.
+            size: { width: { magnitude: 300, unit: 'PT' }, height: { magnitude: 100, unit: 'PT' } }
         },
         rows: 4, 
         columns: 2
@@ -237,7 +247,7 @@ export const createGoogleSlidePresentation = async (
                   bold: bold, 
                   foregroundColor: { opaqueColor: { rgbColor: color } } 
               },
-              fields: 'foregroundColor,bold,fontFamily,fontSize' // FIX: Fields outside style
+              fields: 'foregroundColor,bold,fontFamily,fontSize' // IMPORTANT: fields outside style
           }
       });
       requests.push({
@@ -276,7 +286,8 @@ export const createGoogleSlidePresentation = async (
             elementProperties: {
                 pageObjectId: valuesId,
                 transform: { scaleX: 1, scaleY: 1, translateX: 370, translateY: 120, unit: 'PT' },
-                size: { width: { magnitude: 320, unit: 'PT' } }
+                // FIX: Added Height
+                size: { width: { magnitude: 320, unit: 'PT' }, height: { magnitude: 100, unit: 'PT' } }
             },
             rows: 3, 
             columns: 2
@@ -388,7 +399,7 @@ export const createGoogleSlidePresentation = async (
       addText(slideId, "Mobiliário e Equipamentos", 30, yPos, 400, 20, 12, GREEN, true);
       yPos += 25;
 
-      // Simple Text List (Split if too long? For now just simple list)
+      // Simple Text List
       const listText = itemList.map(([name, qty]) => `${qty < 10 ? '0'+qty : qty}x  ${name}`).join('\n');
       
       const listId = addText(slideId, listText, 30, yPos, 400, 230, 9, GRAY);
