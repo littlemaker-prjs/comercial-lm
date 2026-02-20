@@ -380,7 +380,7 @@ export const createGoogleSlidePresentation = async (
           }
       }
   });
-  requests.push({ updateShapeProperties: { objectId: t1BodyId, shapeProperties: { shapeBackgroundFill: { solidFill: { color: { rgbColor: {red: 0.95, green: 0.95, blue: 0.95} } } }, outline: { solidFill: {color: {rgbColor: GRAY_LIGHT}}, weight: {magnitude: 1, unit: 'PT'} } }, fields: 'shapeBackgroundFill,outline' } });
+  requests.push({ updateShapeProperties: { objectId: t1BodyId, shapeProperties: { shapeBackgroundFill: { solidFill: { color: { rgbColor: {red: 0.95, green: 0.95, blue: 0.95} } } }, outline: { outlineFill: { solidFill: {color: {rgbColor: GRAY_LIGHT}} }, weight: {magnitude: 1, unit: 'PT'} } }, fields: 'shapeBackgroundFill,outline' } });
 
   // Content Rows
   const matRows = [
@@ -458,7 +458,7 @@ export const createGoogleSlidePresentation = async (
             }
         }
     });
-    requests.push({ updateShapeProperties: { objectId: t2BodyId, shapeProperties: { shapeBackgroundFill: { solidFill: { color: { rgbColor: {red: 0.95, green: 0.95, blue: 0.95} } } }, outline: { solidFill: {color: {rgbColor: GRAY_LIGHT}}, weight: {magnitude: 1, unit: 'PT'} } }, fields: 'shapeBackgroundFill,outline' } });
+    requests.push({ updateShapeProperties: { objectId: t2BodyId, shapeProperties: { shapeBackgroundFill: { solidFill: { color: { rgbColor: {red: 0.95, green: 0.95, blue: 0.95} } } }, outline: { outlineFill: { solidFill: {color: {rgbColor: GRAY_LIGHT}} }, weight: {magnitude: 1, unit: 'PT'} } }, fields: 'shapeBackgroundFill,outline' } });
 
     const infraRows = [
         { label: "Investimento Infraestrutura ***", value: calculations.totalInfra.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }), highlight: false },
