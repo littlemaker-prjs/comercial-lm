@@ -385,10 +385,6 @@ export const ProposalView: React.FC<ProposalViewProps> = ({ appState, setAppStat
             )}
          </div>
          <div className="flex gap-2">
-            <button onClick={() => window.print()} className="flex items-center gap-2 bg-slate-200 text-slate-700 px-5 py-2 rounded-lg font-bold hover:bg-slate-300 transition-colors shadow-sm">
-                <Download className="w-4 h-4" />
-                Imprimir PDF (Fiel)
-            </button>
             <button 
                 onClick={handleGoogleSlidesGeneration} 
                 disabled={isGeneratingSlides}

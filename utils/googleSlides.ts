@@ -12,11 +12,7 @@ const GRAY_LIGHT = { red: 0.95, green: 0.95, blue: 0.95 };
 
 // Helper to get public URL
 const getLogoUrl = () => {
-    if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
-        console.warn("Google Slides API cannot access localhost images. Using placeholder for Logo.");
-        return "https://placehold.co/200x60/transparent/71477A.png?text=LITTLE+MAKER";
-    }
-    return `${window.location.origin}/images/logo_lm.png`;
+    return "https://comercial-lm.vercel.app/images/logo_lm.png";
 };
 
 // Helper to determine text content based on selection (Replicated logic from ProposalView)
@@ -294,19 +290,19 @@ export const createGoogleSlidePresentation = async (
           const xPos = margin + (idx * (colWidth + gutter));
           const yPos = 80; // Moved up slightly
 
-          // Title
-          addText(scopeId, content.title, xPos, yPos, colWidth, 30, 14, GREEN, true);
+          // Title (Size 11)
+          addText(scopeId, content.title, xPos, yPos, colWidth, 30, 11, GREEN, true);
           
-          // Subtitle
-          addText(scopeId, content.subtitle, xPos, yPos + 25, colWidth, 20, 10, GRAY, true); 
+          // Subtitle (Size 9, Bold)
+          addText(scopeId, content.subtitle, xPos, yPos + 25, colWidth, 20, 9, GRAY, true); 
 
-          // Items
+          // Items (Size 9, Increased Spacing)
           const listText = content.items.map((it: string) => `• ${it}`).join('\n');
-          const listId = addText(scopeId, listText, xPos, yPos + 50, colWidth, 300, 10, BLACK);
+          const listId = addText(scopeId, listText, xPos, yPos + 55, colWidth, 300, 9, BLACK); // Increased Y offset
           requests.push({
             updateParagraphStyle: {
                 objectId: listId,
-                style: { lineSpacing: 130 },
+                style: { lineSpacing: 140 }, // Increased line spacing
                 fields: 'lineSpacing'
             }
           });
@@ -349,148 +345,158 @@ export const createGoogleSlidePresentation = async (
   // Title in Header
   addText(valuesId, "Condições Comerciais", 140, 10, 560, 30, 24, WHITE, true, 'END');
 
-  // --- TABLE 1: MATERIAL ---
-  const tableId1 = `table_mat_${Date.now()}`;
+  // --- TABLE 1: MATERIAL (Using Shapes for rounded look) ---
+  const table1X = 30;
+  const table1Y = 80;
+  const table1W = 320;
+  
+  // Header Shape
+  const t1HeaderId = `t1_head_${Date.now()}`;
   requests.push({
-    createTable: {
-        objectId: tableId1,
-        elementProperties: {
-            pageObjectId: valuesId,
-            transform: { scaleX: 1, scaleY: 1, translateX: 30, translateY: 80, unit: 'PT' },
-            size: { width: { magnitude: 320, unit: 'PT' }, height: { magnitude: 120, unit: 'PT' } }
-        },
-        rows: 5, // Added row for Bonus
-        columns: 2
-    }
+      createShape: {
+          objectId: t1HeaderId,
+          shapeType: 'ROUND_RECTANGLE', // Rounded corners
+          elementProperties: {
+              pageObjectId: valuesId,
+              size: { width: { magnitude: table1W, unit: 'PT' }, height: { magnitude: 30, unit: 'PT' } },
+              transform: { scaleX: 1, scaleY: 1, translateX: table1X, translateY: table1Y, unit: 'PT' }
+          }
+      }
   });
+  requests.push({ updateShapeProperties: { objectId: t1HeaderId, shapeProperties: { shapeBackgroundFill: { solidFill: { color: { rgbColor: GREEN } } }, outline: { propertyState: 'NOT_RENDERED' } }, fields: 'shapeBackgroundFill,outline' } });
+  addText(valuesId, "Material do Aluno", table1X, table1Y + 5, table1W, 20, 12, WHITE, true, 'CENTER');
 
-  const matData = [
-      ["Material do Aluno", ""],
-      ["Total de Alunos", calculations.totalStudents.toString()],
-      ["Investimento Aluno/Ano *", calculations.appliedRatePerStudentYear.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })],
-      ["Investimento Aluno/Mês *", calculations.finalMaterialRatePerMonth.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })],
-      ["Bônus Fidelidade (Desc.)", calculations.materialDiscountAmount > 0 ? `- ${calculations.materialDiscountAmount.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}` : "-"]
+  // Body Shape (White background with border)
+  const t1BodyId = `t1_body_${Date.now()}`;
+  const t1BodyH = 100;
+  requests.push({
+      createShape: {
+          objectId: t1BodyId,
+          shapeType: 'RECTANGLE',
+          elementProperties: {
+              pageObjectId: valuesId,
+              size: { width: { magnitude: table1W, unit: 'PT' }, height: { magnitude: t1BodyH, unit: 'PT' } },
+              transform: { scaleX: 1, scaleY: 1, translateX: table1X, translateY: table1Y + 25, unit: 'PT' } // Overlap slightly to look connected
+          }
+      }
+  });
+  requests.push({ updateShapeProperties: { objectId: t1BodyId, shapeProperties: { shapeBackgroundFill: { solidFill: { color: { rgbColor: {red: 0.95, green: 0.95, blue: 0.95} } } }, outline: { solidFill: {color: {rgbColor: GRAY_LIGHT}}, weight: {magnitude: 1, unit: 'PT'} } }, fields: 'shapeBackgroundFill,outline' } });
+
+  // Content Rows
+  const matRows = [
+      { label: "Total de Alunos", value: calculations.totalStudents.toString(), highlight: false },
+      { label: "Investimento Aluno/Ano *", value: calculations.appliedRatePerStudentYear.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }), highlight: false },
+      { label: "Investimento Aluno/Mês *", value: calculations.finalMaterialRatePerMonth.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }), highlight: true },
+      { label: "Bônus Fidelidade (Desc.)", value: calculations.materialDiscountAmount > 0 ? `- ${calculations.materialDiscountAmount.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}` : "-", highlight: false, isBonus: true }
   ];
 
-  const insertCellText = (tableId: string, row: number, col: number, text: string, fontSize = 10, bold = false, color: any = BLACK, align = 'START') => {
-      requests.push({
-          insertText: {
-              objectId: tableId,
-              cellLocation: { rowIndex: row, columnIndex: col },
-              text: text,
-              insertionIndex: 0
-          }
-      });
-      requests.push({
-          updateTextStyle: {
-              objectId: tableId,
-              cellLocation: { rowIndex: row, columnIndex: col },
-              style: { 
-                  fontFamily: 'Montserrat', 
-                  fontSize: { magnitude: fontSize, unit: 'PT' }, 
-                  bold: bold, 
-                  foregroundColor: { opaqueColor: { rgbColor: color } } 
-              },
-              fields: 'foregroundColor,bold,fontFamily,fontSize'
-          }
-      });
-      requests.push({
-          updateParagraphStyle: {
-              objectId: tableId,
-              cellLocation: { rowIndex: row, columnIndex: col },
-              style: { alignment: align },
-              fields: 'alignment'
-          }
-      });
-  };
+  let currentY = table1Y + 35;
+  matRows.forEach((row, idx) => {
+      const labelColor = row.isBonus ? GRAY : BLACK;
+      const valColor = row.isBonus ? GREEN : BLACK;
+      const fontSize = row.highlight ? 10 : 9;
+      const valFontSize = row.highlight ? 11 : 10;
+      const isBold = true;
 
-  insertCellText(tableId1, 0, 0, "Material do Aluno", 12, true, WHITE, 'CENTER');
-  requests.push({ mergeTableCells: { objectId: tableId1, tableRange: { location: { rowIndex: 0, columnIndex: 0 }, rowSpan: 1, columnSpan: 2 } } });
-  requests.push({ updateTableCellProperties: { objectId: tableId1, tableRange: { location: { rowIndex: 0, columnIndex: 0 }, rowSpan: 1, columnSpan: 2 }, tableCellProperties: { tableCellBackgroundFill: { solidFill: { color: { rgbColor: GREEN } } } }, fields: 'tableCellBackgroundFill' } });
+      if (row.highlight) {
+           // Highlight Background
+           const hlId = `hl_mat_${idx}_${Date.now()}`;
+           requests.push({
+                createShape: {
+                    objectId: hlId,
+                    shapeType: 'RECTANGLE',
+                    elementProperties: {
+                        pageObjectId: valuesId,
+                        size: { width: { magnitude: table1W, unit: 'PT' }, height: { magnitude: 20, unit: 'PT' } },
+                        transform: { scaleX: 1, scaleY: 1, translateX: table1X, translateY: currentY, unit: 'PT' }
+                    }
+                }
+           });
+           requests.push({ updateShapeProperties: { objectId: hlId, shapeProperties: { shapeBackgroundFill: { solidFill: { color: { rgbColor: {red: 0.92, green: 0.96, blue: 0.88} } } }, outline: { propertyState: 'NOT_RENDERED' } }, fields: 'shapeBackgroundFill,outline' } });
+      }
 
-  insertCellText(tableId1, 1, 0, "Total de Alunos");
-  insertCellText(tableId1, 1, 1, matData[1][1], 10, true, BLACK, 'END');
-  
-  insertCellText(tableId1, 2, 0, "Investimento Aluno/Ano *");
-  insertCellText(tableId1, 2, 1, matData[2][1], 10, true, BLACK, 'END');
-  
-  insertCellText(tableId1, 3, 0, "Investimento Aluno/Mês *", 11, true);
-  insertCellText(tableId1, 3, 1, matData[3][1], 12, true, BLACK, 'END');
-  requests.push({ updateTableCellProperties: { objectId: tableId1, tableRange: { location: { rowIndex: 3, columnIndex: 0 }, rowSpan: 1, columnSpan: 2 }, tableCellProperties: { tableCellBackgroundFill: { solidFill: { color: { rgbColor: {red: 0.92, green: 0.96, blue: 0.88} } } } }, fields: 'tableCellBackgroundFill' } });
-
-  if (calculations.materialDiscountAmount > 0) {
-      insertCellText(tableId1, 4, 0, "Bônus Fidelidade (Desc.)", 10, false, GRAY);
-      insertCellText(tableId1, 4, 1, matData[4][1], 10, true, GREEN, 'END');
-  } else {
-      insertCellText(tableId1, 4, 0, "-", 10, false, GRAY);
-      insertCellText(tableId1, 4, 1, "-", 10, true, GRAY, 'END');
-  }
+      addText(valuesId, row.label, table1X + 10, currentY, 200, 20, fontSize, labelColor, isBold);
+      addText(valuesId, row.value, table1X + 210, currentY, 100, 20, valFontSize, valColor, true, 'END');
+      
+      currentY += 22;
+  });
 
 
-  // --- TABLE 2: INFRA ---
+  // --- TABLE 2: INFRA (Using Shapes) ---
   if (calculations.hasInfraItems) {
-    const tableId2 = `table_infra_${Date.now()}`;
-    requests.push({
-        createTable: {
-            objectId: tableId2,
-            elementProperties: {
-                pageObjectId: valuesId,
-                transform: { scaleX: 1, scaleY: 1, translateX: 370, translateY: 80, unit: 'PT' },
-                size: { width: { magnitude: 320, unit: 'PT' }, height: { magnitude: 120, unit: 'PT' } }
-            },
-            rows: 4, 
-            columns: 2
-        }
-    });
-    const infraData = [
-        ["Infraestrutura", ""],
-        ["Investimento Infraestrutura ***", calculations.totalInfra.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })],
-        ["Desconto bônus fidelidade **", calculations.infraDiscountAmount > 0 ? `- ${calculations.infraDiscountAmount.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}` : "-"],
-        ["Total Final (Único)", calculations.totalInfraNet.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })],
-        ["Parcelamento (3x)", calculations.infraInstallment.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })]
-    ];
-    
-    insertCellText(tableId2, 0, 0, "Infraestrutura (Ambientação e Ferramentas)", 12, true, WHITE, 'CENTER');
-    requests.push({ mergeTableCells: { objectId: tableId2, tableRange: { location: { rowIndex: 0, columnIndex: 0 }, rowSpan: 1, columnSpan: 2 } } });
-    requests.push({ updateTableCellProperties: { objectId: tableId2, tableRange: { location: { rowIndex: 0, columnIndex: 0 }, rowSpan: 1, columnSpan: 2 }, tableCellProperties: { tableCellBackgroundFill: { solidFill: { color: { rgbColor: GREEN } } } }, fields: 'tableCellBackgroundFill' } });
+    const table2X = 370;
+    const table2Y = 80;
+    const table2W = 320;
 
-    insertCellText(tableId2, 1, 0, "Investimento Infraestrutura ***");
-    insertCellText(tableId2, 1, 1, infraData[1][1], 10, true, BLACK, 'END');
-
-    if (calculations.infraDiscountAmount > 0) {
-        insertCellText(tableId2, 2, 0, "Desconto bônus fidelidade **");
-        insertCellText(tableId2, 2, 1, infraData[2][1], 10, true, GREEN, 'END');
-    } else {
-        insertCellText(tableId2, 2, 0, "-");
-        insertCellText(tableId2, 2, 1, "-", 10, true, GRAY, 'END');
-    }
-
-    insertCellText(tableId2, 3, 0, "Total Final (Único)", 11, true);
-    insertCellText(tableId2, 3, 1, infraData[3][1], 12, true, BLACK, 'END');
-    // insertCellText(tableId2, 4, 0, "Parcelamento (3x)", 11, true);
-    // insertCellText(tableId2, 4, 1, infraData[4][1], 12, true, BLACK, 'END');
-    
-    // Highlight Total Final
-    // requests.push({ updateTableCellProperties: { objectId: tableId2, tableRange: { location: { rowIndex: 3, columnIndex: 0 }, rowSpan: 1, columnSpan: 2 }, tableCellProperties: { tableCellBackgroundFill: { solidFill: { color: { rgbColor: {red: 0.92, green: 0.96, blue: 0.88} } } } }, fields: 'tableCellBackgroundFill' } });
-    
-    // Add background for parcelamento (Add BEFORE text to ensure it's behind)
-    const parcelamentoBgId = `rect_parc_${Date.now()}`;
+    // Header Shape
+    const t2HeaderId = `t2_head_${Date.now()}`;
     requests.push({
         createShape: {
-            objectId: parcelamentoBgId,
-            shapeType: 'RECTANGLE',
+            objectId: t2HeaderId,
+            shapeType: 'ROUND_RECTANGLE',
             elementProperties: {
                 pageObjectId: valuesId,
-                size: { width: { magnitude: 320, unit: 'PT' }, height: { magnitude: 30, unit: 'PT' } },
-                transform: { scaleX: 1, scaleY: 1, translateX: 370, translateY: 210, unit: 'PT' }
+                size: { width: { magnitude: table2W, unit: 'PT' }, height: { magnitude: 30, unit: 'PT' } },
+                transform: { scaleX: 1, scaleY: 1, translateX: table2X, translateY: table2Y, unit: 'PT' }
             }
         }
     });
-    requests.push({ updateShapeProperties: { objectId: parcelamentoBgId, shapeProperties: { shapeBackgroundFill: { solidFill: { color: { rgbColor: {red: 0.92, green: 0.96, blue: 0.88} } } }, outline: { propertyState: 'NOT_RENDERED' } }, fields: 'shapeBackgroundFill,outline' } });
+    requests.push({ updateShapeProperties: { objectId: t2HeaderId, shapeProperties: { shapeBackgroundFill: { solidFill: { color: { rgbColor: GREEN } } }, outline: { propertyState: 'NOT_RENDERED' } }, fields: 'shapeBackgroundFill,outline' } });
+    addText(valuesId, "Infraestrutura (Ambientação e Ferramentas)", table2X, table2Y + 5, table2W, 20, 12, WHITE, true, 'CENTER');
 
-    // Add Parcelamento text (Add AFTER background)
-    addText(valuesId, "Parcelamento em 3x", 370, 210, 160, 30, 11, BLACK, true, 'START');
-    addText(valuesId, infraData[4][1], 530, 210, 160, 30, 12, BLACK, true, 'END');
+    // Body Shape
+    const t2BodyId = `t2_body_${Date.now()}`;
+    const t2BodyH = 100; // Adjusted height
+    requests.push({
+        createShape: {
+            objectId: t2BodyId,
+            shapeType: 'RECTANGLE',
+            elementProperties: {
+                pageObjectId: valuesId,
+                size: { width: { magnitude: table2W, unit: 'PT' }, height: { magnitude: t2BodyH, unit: 'PT' } },
+                transform: { scaleX: 1, scaleY: 1, translateX: table2X, translateY: table2Y + 25, unit: 'PT' }
+            }
+        }
+    });
+    requests.push({ updateShapeProperties: { objectId: t2BodyId, shapeProperties: { shapeBackgroundFill: { solidFill: { color: { rgbColor: {red: 0.95, green: 0.95, blue: 0.95} } } }, outline: { solidFill: {color: {rgbColor: GRAY_LIGHT}}, weight: {magnitude: 1, unit: 'PT'} } }, fields: 'shapeBackgroundFill,outline' } });
+
+    const infraRows = [
+        { label: "Investimento Infraestrutura ***", value: calculations.totalInfra.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }), highlight: false },
+        { label: "Desconto bônus fidelidade **", value: calculations.infraDiscountAmount > 0 ? `- ${calculations.infraDiscountAmount.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}` : "-", highlight: false, isBonus: true },
+        { label: "Total Final (Único)", value: calculations.totalInfraNet.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }), highlight: true },
+        { label: "Parcelamento (3x)", value: calculations.infraInstallment.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }), highlight: true }
+    ];
+
+    let currentY2 = table2Y + 35;
+    infraRows.forEach((row, idx) => {
+        const labelColor = row.isBonus ? GRAY : BLACK;
+        const valColor = row.isBonus ? GREEN : BLACK;
+        const fontSize = row.highlight ? 10 : 9;
+        const valFontSize = row.highlight ? 11 : 10;
+        const isBold = true;
+
+        if (row.highlight) {
+             // Highlight Background
+             const hlId = `hl_infra_${idx}_${Date.now()}`;
+             requests.push({
+                  createShape: {
+                      objectId: hlId,
+                      shapeType: 'RECTANGLE',
+                      elementProperties: {
+                          pageObjectId: valuesId,
+                          size: { width: { magnitude: table2W, unit: 'PT' }, height: { magnitude: 20, unit: 'PT' } },
+                          transform: { scaleX: 1, scaleY: 1, translateX: table2X, translateY: currentY2, unit: 'PT' }
+                      }
+                  }
+             });
+             requests.push({ updateShapeProperties: { objectId: hlId, shapeProperties: { shapeBackgroundFill: { solidFill: { color: { rgbColor: {red: 0.92, green: 0.96, blue: 0.88} } } }, outline: { propertyState: 'NOT_RENDERED' } }, fields: 'shapeBackgroundFill,outline' } });
+        }
+
+        addText(valuesId, row.label, table2X + 10, currentY2, 200, 20, fontSize, labelColor, isBold);
+        addText(valuesId, row.value, table2X + 210, currentY2, 100, 20, valFontSize, valColor, true, 'END');
+        
+        currentY2 += 22;
+    });
   }
 
   // Footnotes
@@ -547,8 +553,8 @@ export const createGoogleSlidePresentation = async (
       requests.push({ updateShapeProperties: { objectId: `header_${slideId}`, shapeProperties: { shapeBackgroundFill: { solidFill: { color: { rgbColor: PURPLE } } }, outline: { propertyState: 'NOT_RENDERED' } }, fields: 'shapeBackgroundFill,outline' } });
       addImage(slideId, LOGO_URL, 20, 10, 100, 30);
       
-      // Title in Header
-      addText(slideId, `Memorial Descritivo - ${title}`, 140, 10, 560, 30, 24, WHITE, true, 'END');
+      // Title in Header (Matching Scope Slide Title)
+      addText(slideId, title, 140, 10, 560, 30, 24, WHITE, true, 'END');
 
       // Footer
       requests.push({
@@ -577,7 +583,10 @@ export const createGoogleSlidePresentation = async (
 
       if (items.length === 0) return;
 
-      const catTitle = cat === 'maker' ? 'Espaço Maker' : cat === 'midia' ? 'Sala de Mídia' : 'Espaço Infantil';
+      // Get Title from Scope Logic to match exactly
+      const textData = getProposalText(cat as CategoryType, selectedInfraIds, calculations);
+      const catTitle = textData ? textData.title : (cat === 'maker' ? 'Espaço Maker' : cat === 'midia' ? 'Sala de Mídia' : 'Espaço Infantil');
+
       const slideId = addSpecSlide(cat, catTitle);
 
       // Determine Image URL
@@ -592,11 +601,11 @@ export const createGoogleSlidePresentation = async (
         else imgUrl = AMBIENTATION_IMAGES['infantil_oficina'];
       }
 
-      // ADD IMAGE (LEFT SIDE - MAXIMIZED)
-      // Slide width 720. Height available ~340 (50 to 390).
-      // Image x=20, y=70. Width 450. Height 300.
+      // ADD IMAGE (LEFT SIDE - 45% Width)
+      // Slide width 720. 45% is ~324pt.
+      // Image x=20, y=70.
       if (imgUrl) {
-          addImage(slideId, imgUrl, 20, 70, 450, 300);
+          addImage(slideId, imgUrl, 20, 70, 324, 250);
       }
 
       // Aggregate Items + Identity Items
@@ -634,17 +643,28 @@ export const createGoogleSlidePresentation = async (
       }
 
       // Right Side Column
-      // x = 490, width = 210.
+      // X starts after image + padding. 20 + 324 + 20 = 364.
+      // Width = 720 - 364 - 20 = 336.
+      const rightX = 364;
+      const rightW = 336;
       
       // Add Header "Memorial Descritivo Detalhado" (Right Side)
-      addText(slideId, "Memorial Descritivo Detalhado", 490, 70, 210, 20, 12, GREEN, true);
+      // Positioned close to header bar (y=60)
+      addText(slideId, "Memorial Descritivo Detalhado", rightX, 60, rightW, 20, 12, GREEN, true);
+
+      // Split into 2 columns for the list
+      const half = Math.ceil(allLines.length / 2);
+      const col1 = allLines.slice(0, half).join('\n');
+      const col2 = allLines.slice(half).join('\n');
+      
+      const colW = (rightW / 2) - 10;
 
       // Add Columns Text (Small Font 6pt)
-      // Since width is narrow, we might need single column or very tight double column.
-      // Let's try single column for the list on the right, as space is limited.
-      const listText = allLines.join('\n');
-      const listId = addText(slideId, listText, 490, 95, 210, 280, 6, GRAY);
-      requests.push({ updateParagraphStyle: { objectId: listId, style: { lineSpacing: 115 }, fields: 'lineSpacing' } });
+      const col1Id = addText(slideId, col1, rightX, 85, colW, 290, 6, GRAY);
+      requests.push({ updateParagraphStyle: { objectId: col1Id, style: { lineSpacing: 115 }, fields: 'lineSpacing' } });
+
+      const col2Id = addText(slideId, col2, rightX + colW + 10, 85, colW, 290, 6, GRAY);
+      requests.push({ updateParagraphStyle: { objectId: col2Id, style: { lineSpacing: 115 }, fields: 'lineSpacing' } });
   });
 
   // REMOVE BLANK FIRST SLIDE
