@@ -150,7 +150,16 @@ export const ProposalView: React.FC<ProposalViewProps> = ({ appState, setAppStat
   const calculationData = {
       totalStudents: commercial.totalStudents,
       totalMaterialYear: grossContractMaterial / 3, // Normalized year value
-      totalInfra: totalInfraGross
+      totalInfra: totalInfraGross,
+      // Added fields for consistency
+      appliedRatePerStudentYear,
+      finalMaterialRatePerMonth,
+      materialDiscountAmount,
+      infraDiscountAmount,
+      totalInfraNet,
+      infraInstallment,
+      commercial: appState.commercial, // Pass full commercial state for flags
+      hasInfraItems
   };
 
   // --- CAPACITY HELPERS ---
