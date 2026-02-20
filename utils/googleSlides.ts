@@ -10,9 +10,8 @@ const BLACK = { red: 0, green: 0, blue: 0 };
 const GRAY = { red: 0.4, green: 0.4, blue: 0.4 };
 const GRAY_LIGHT = { red: 0.95, green: 0.95, blue: 0.95 };
 
-// Public URL for the logo (Google API needs public URL returning an IMAGE, not HTML)
-// Using a placeholder PNG for now to guarantee it works. 
-// Replace with a direct link to a PNG/JPG hosted on your server/bucket if needed.
+// IMPORTANT: Google Slides API REQUIRES a public URL. It cannot access 'assets/...' or local files.
+// To use your logo, upload 'logo_lm.png' to Firebase Storage or a public server and paste the URL here.
 const LOGO_URL = "https://placehold.co/200x60/transparent/71477A.png?text=LITTLE+MAKER";
 
 export const createGoogleSlidePresentation = async (
@@ -66,6 +65,8 @@ export const createGoogleSlidePresentation = async (
 
   const addText = (pageId: string, text: string, x: number, y: number, w: number, h: number, fontSize: number, color: any = BLACK, bold = false, align = 'START') => {
     const elementId = `text_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    
+    // 1. Create Shape
     requests.push({
       createShape: {
         objectId: elementId,
@@ -77,6 +78,8 @@ export const createGoogleSlidePresentation = async (
         }
       }
     });
+
+    // 2. Insert Text
     requests.push({
       insertText: {
         objectId: elementId,
@@ -84,6 +87,8 @@ export const createGoogleSlidePresentation = async (
         insertionIndex: 0
       }
     });
+
+    // 3. Style Text
     requests.push({
       updateTextStyle: {
         objectId: elementId,
@@ -93,9 +98,11 @@ export const createGoogleSlidePresentation = async (
           foregroundColor: { opaqueColor: { rgbColor: color } },
           bold: bold
         },
-        fields: 'foregroundColor,bold,fontFamily,fontSize'
+        fields: 'foregroundColor,bold,fontFamily,fontSize' // Fields MUST be here, outside 'style'
       }
     });
+
+    // 4. Align Paragraph
     requests.push({
       updateParagraphStyle: {
         objectId: elementId,
@@ -103,11 +110,11 @@ export const createGoogleSlidePresentation = async (
         fields: 'alignment'
       }
     });
+
     return elementId;
   };
 
   const addImage = (pageId: string, url: string, x: number, y: number, w: number, h: number) => {
-    // Basic validation to avoid 400 errors if URL is empty or obviously wrong
     if (!url || !url.startsWith('http')) return;
 
     const elementId = `img_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
@@ -134,14 +141,14 @@ export const createGoogleSlidePresentation = async (
           shapeType: 'RECTANGLE',
           elementProperties: {
               pageObjectId: coverId,
-              size: { width: { magnitude: 720, unit: 'PT' }, height: { magnitude: 50, unit: 'PT' } }, // 10 inch width * 72
+              size: { width: { magnitude: 720, unit: 'PT' }, height: { magnitude: 50, unit: 'PT' } },
               transform: { scaleX: 1, scaleY: 1, translateX: 0, translateY: 0, unit: 'PT' }
           }
       }
   });
   requests.push({ updateShapeProperties: { objectId: `header_${coverId}`, shapeProperties: { shapeBackgroundFill: { solidFill: { color: { rgbColor: PURPLE } } }, outline: { propertyState: 'NOT_RENDERED' } }, fields: 'shapeBackgroundFill,outline' } });
 
-  // Logo (Top Left)
+  // Logo
   addImage(coverId, LOGO_URL, 20, 10, 100, 30);
 
   // Title
@@ -191,19 +198,20 @@ export const createGoogleSlidePresentation = async (
   requests.push({
     createTable: {
         objectId: tableId1,
-        pageObjectId: valuesId,
-        rows: 4, 
-        columns: 2,
+        // pageObjectId MUST be inside elementProperties
         elementProperties: {
+            pageObjectId: valuesId,
             transform: { scaleX: 1, scaleY: 1, translateX: 30, translateY: 120, unit: 'PT' },
             size: { width: { magnitude: 300, unit: 'PT' } } // Height autosizes
-        }
+        },
+        rows: 4, 
+        columns: 2
     }
   });
 
   // Fill Table 1 Text
   const matData = [
-      ["Material do Aluno", ""], // Header merged
+      ["Material do Aluno", ""],
       ["Total de Alunos", calculations.totalStudents.toString()],
       ["Investimento Aluno/Ano", (calculations.totalMaterialYear / calculations.totalStudents).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })],
       ["Investimento Aluno/Mês", (calculations.totalMaterialYear / calculations.totalStudents / 12).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })]
@@ -223,9 +231,13 @@ export const createGoogleSlidePresentation = async (
           updateTextStyle: {
               objectId: tableId,
               cellLocation: { rowIndex: row, columnIndex: col },
-              style: { fontFamily: 'Montserrat', fontSize: { magnitude: fontSize, unit: 'PT' }, bold: bold, foregroundColor: { opaqueColor: { rgbColor: color } },
-              fields: 'foregroundColor,bold,fontFamily,fontSize'
-              }
+              style: { 
+                  fontFamily: 'Montserrat', 
+                  fontSize: { magnitude: fontSize, unit: 'PT' }, 
+                  bold: bold, 
+                  foregroundColor: { opaqueColor: { rgbColor: color } } 
+              },
+              fields: 'foregroundColor,bold,fontFamily,fontSize' // FIX: Fields outside style
           }
       });
       requests.push({
@@ -261,13 +273,13 @@ export const createGoogleSlidePresentation = async (
     requests.push({
         createTable: {
             objectId: tableId2,
-            pageObjectId: valuesId,
-            rows: 3, 
-            columns: 2,
             elementProperties: {
+                pageObjectId: valuesId,
                 transform: { scaleX: 1, scaleY: 1, translateX: 370, translateY: 120, unit: 'PT' },
                 size: { width: { magnitude: 320, unit: 'PT' } }
-            }
+            },
+            rows: 3, 
+            columns: 2
         }
     });
 
