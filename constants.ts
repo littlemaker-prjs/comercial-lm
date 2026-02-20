@@ -9,7 +9,7 @@ export const SUPER_ADMINS = [
 // Base64 Placeholder for Logo to prevent CORS errors in PPTX generation.
 // This is a 1x1 transparent pixel placeholder. 
 // You should replace this string with the actual Base64 of your logo.
-export const LOGO_BASE64 = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAMgAAAAyCAYAAAAZUD4GAAAABHNCSVQICAgIfAhkiAAAAAlwSFlzAAALEgAACxIB0t1+/AAAABZ0RVh0Q3JlYXRpb24gVGltZQAwMi8yNy8yNPM2T6kAAAAcdEVYdFNvZnR3YXJlAEFkb2JlIEZpcmV3b3JrcyBDUzVxteM2AAABSURBWHic7doxSwNBFIbRQ0gQ0gZBLAyC2BhaCBaChWghWAgWgoVgIVgIFoKFYCFYCBaxEAtBEMQihf/AAzKwhZ29zL4334FD2F02++zOsrM7DwAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACAt/S8H0BvGvj+A73p4PsP9KaB7z/Qmw7/8/0F+tL993c4/hA933+gN939/gO9aeD7D/Smge8/0JsGvv9Abxr4/gO9aeD7D/Smge8/0JsGvv9Abxr4/gO9aeD7D/Smge8/0JsGvv9Abxr4/gO9aeD7D/Smge8/0JsGvv9Abxr4/gO9aeD7D/Smge8/0JsGvv9Abxr4/gO9aeD7D/Smge8/0JsGvv9Abxr4/gO9aeD7D/Smge8/0JsGvv9Abxr4/gO9aeD7D/Smge8/0JsGvv9Abxr4/gO9aeD7D/Smge8/0JsGvv9Abxr4/gO96eT7D/Sm+99/oDcAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAADgV34AoKZX59M1g3AAAAAASUVORK5CYII=";
+export const LOGO_BASE64 = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAMgAAAAyCAYAAAAZUD4GAAAABHNCSVQICAgIfAhkiAAAAAlwSFlzAAALEgAACxIB0t1+/AAAABZ0RVh0Q3JlYXRpb24gVGltZQAwMi8yNy8yNPM2T6kAAAAcdEVYdFNvZnR3YXJlAEFkb2JlIEZpcmV3b3JrcyBDUzVxteM2AAABSURBWHic7doxSwNBFIbRQ0gQ0gZBLAyC2BhaCBaChWghWAgWgoVgIVgIFoKFYCFYCBaxEAtBEMQihf/AAzKwhZ29zL4334FD2F02++zOsrM7DwAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACAt/S8H0BvGvj+A73p4PsP9KaB7z/Qmw7/8/0F+tL993c4/hA933+gN939/gO9aeD7D/Smge8/0JsGvv9Abxr4/gO9aeD7D/Smge8/0JsGvv9Abxr4/gO9aeD7D/Smge8/0JsGvv9Abxr4/gO9aeD7D/Smge8/0JsGvv9Abxr4/gO9aeD7D/Smge8/0JsGvv9Abxr4/gO9aeD7D/Smge8/0JsGvv9Abxr4/gO9aeD7D/Smge8/0JsGvv9Abxr4/gO9aeD7D/Smge8/0JsGvv9Abxr4/gO9aeD7D/Smge8/0JsGvv9Abxr4/gO9aeD7D/Smge8/0JsGvv9Abxr4/gO96eT7D/Sm+99/oDcAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAADgV34AoKZX59M1g3AAAAAASUVORK5CYII=";
 
 export const REGIONS: Region[] = [
   { id: 'ate_700', label: 'Até 700Km', priceSimple: 1500, priceAssembly: 4000 },
@@ -339,12 +339,14 @@ export const INITIAL_APP_STATE: AppState = {
 };
 
 // --- DATA FOR TECHNICAL DESCRIPTION ---
+// IMPORTANT: These URLs must point to VALID IMAGES (PNG/JPG), not SVG or HTML pages.
+// Using .png extension for placehold.co ensures a raster image is returned.
 export const AMBIENTATION_IMAGES: Record<string, string> = {
-    'maker_padrao': 'https://placehold.co/600x400/71477A/FFF?text=Ambientacao+Maker+Padrao',
-    'maker_minima': 'https://placehold.co/600x400/71477A/FFF?text=Ambientacao+Maker+Minima',
-    'midia_padrao': 'https://placehold.co/600x400/71477A/FFF?text=Ambientacao+Midia+Padrao',
-    'infantil_oficina': 'https://placehold.co/600x400/71477A/FFF?text=Oficina+Infantil',
-    'infantil_carrinho': 'https://placehold.co/600x400/71477A/FFF?text=Carrinho+Infantil',
+    'maker_padrao': 'https://placehold.co/600x400/71477A/FFF.png?text=Ambientacao+Maker+Padrao',
+    'maker_minima': 'https://placehold.co/600x400/71477A/FFF.png?text=Ambientacao+Maker+Minima',
+    'midia_padrao': 'https://placehold.co/600x400/71477A/FFF.png?text=Ambientacao+Midia+Padrao',
+    'infantil_oficina': 'https://placehold.co/600x400/71477A/FFF.png?text=Oficina+Infantil',
+    'infantil_carrinho': 'https://placehold.co/600x400/71477A/FFF.png?text=Carrinho+Infantil',
 };
 
 export const INFRA_DETAILS: Record<string, TechDetail> = {

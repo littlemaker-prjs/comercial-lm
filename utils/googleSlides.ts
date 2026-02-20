@@ -10,8 +10,10 @@ const BLACK = { red: 0, green: 0, blue: 0 };
 const GRAY = { red: 0.4, green: 0.4, blue: 0.4 };
 const GRAY_LIGHT = { red: 0.95, green: 0.95, blue: 0.95 };
 
-// Public URL for the logo (Google API needs public URL)
-const LOGO_URL = "https://littlemaker.com.br/logo_lm-2/";
+// Public URL for the logo (Google API needs public URL returning an IMAGE, not HTML)
+// Using a placeholder PNG for now to guarantee it works. 
+// Replace with a direct link to a PNG/JPG hosted on your server/bucket if needed.
+const LOGO_URL = "https://placehold.co/200x60/transparent/71477A.png?text=LITTLE+MAKER";
 
 export const createGoogleSlidePresentation = async (
   accessToken: string,
@@ -33,15 +35,21 @@ export const createGoogleSlidePresentation = async (
   });
 
   const presentation = await createRes.json();
+
+  if (!createRes.ok) {
+      console.error('Google Slides API Error (Create):', presentation);
+      throw new Error(presentation.error?.message || 'Erro ao criar apresentação no Google Slides.');
+  }
+
   const presentationId = presentation.presentationId;
+  if (!presentationId) {
+      throw new Error("ID da apresentação não retornado pela API.");
+  }
+
   const requests: any[] = [];
 
   // --- HELPER FUNCTIONS ---
   
-  // Clean slides (remove default first slide)
-  // Note: We usually keep it or modify it, but let's delete elements to have a clean slate or just use blank layouts.
-  // Ideally, we create slides with 'BLANK' layout.
-
   let slideIndex = 0;
   const createSlideId = (idx: number) => `slide_${idx}_${Date.now()}`;
 
@@ -99,6 +107,9 @@ export const createGoogleSlidePresentation = async (
   };
 
   const addImage = (pageId: string, url: string, x: number, y: number, w: number, h: number) => {
+    // Basic validation to avoid 400 errors if URL is empty or obviously wrong
+    if (!url || !url.startsWith('http')) return;
+
     const elementId = `img_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
     requests.push({
         createImage: {
@@ -114,10 +125,6 @@ export const createGoogleSlidePresentation = async (
   };
 
   // --- SLIDE 1: CAPA ---
-  // We use the default slide created or add a new one. The API creates one slide by default.
-  // Let's modify the first slide (pageId is usually 'p' or we can fetch it, but safer to create new ones and delete the first one later if needed).
-  // Strategy: Just append slides.
-  
   const coverId = addSlide();
   
   // Header Bar
@@ -134,7 +141,7 @@ export const createGoogleSlidePresentation = async (
   });
   requests.push({ updateShapeProperties: { objectId: `header_${coverId}`, shapeProperties: { shapeBackgroundFill: { solidFill: { color: { rgbColor: PURPLE } } }, outline: { propertyState: 'NOT_RENDERED' } }, fields: 'shapeBackgroundFill,outline' } });
 
-  // Logo (Top Left) - Using Image
+  // Logo (Top Left)
   addImage(coverId, LOGO_URL, 20, 10, 100, 30);
 
   // Title
@@ -152,8 +159,7 @@ export const createGoogleSlidePresentation = async (
         elementProperties: {
             pageObjectId: coverId,
             size: { width: { magnitude: 720, unit: 'PT' }, height: { magnitude: 15, unit: 'PT' } },
-            transform: { scaleX: 1, scaleY: 1, translateX: 0, translateY: 390, unit: 'PT' } // Slide height is 405pt (5.625 inch) or 540pt (7.5 inch)? 
-            // Standard 16:9 is 10x5.625 inches -> 720x405 pts
+            transform: { scaleX: 1, scaleY: 1, translateX: 0, translateY: 390, unit: 'PT' } 
         }
     }
   });
@@ -217,8 +223,9 @@ export const createGoogleSlidePresentation = async (
           updateTextStyle: {
               objectId: tableId,
               cellLocation: { rowIndex: row, columnIndex: col },
-              style: { fontFamily: 'Montserrat', fontSize: { magnitude: fontSize, unit: 'PT' }, bold: bold, foregroundColor: { opaqueColor: { rgbColor: color } } },
+              style: { fontFamily: 'Montserrat', fontSize: { magnitude: fontSize, unit: 'PT' }, bold: bold, foregroundColor: { opaqueColor: { rgbColor: color } },
               fields: 'foregroundColor,bold,fontFamily,fontSize'
+              }
           }
       });
       requests.push({
@@ -372,10 +379,8 @@ export const createGoogleSlidePresentation = async (
       // Simple Text List (Split if too long? For now just simple list)
       const listText = itemList.map(([name, qty]) => `${qty < 10 ? '0'+qty : qty}x  ${name}`).join('\n');
       
-      // Use a single text box for list to save requests, allow newlines
       const listId = addText(slideId, listText, 30, yPos, 400, 230, 9, GRAY);
       
-      // Set line spacing?
       requests.push({
           updateParagraphStyle: {
               objectId: listId,
@@ -403,7 +408,7 @@ export const createGoogleSlidePresentation = async (
 
   // 2. Execute Batch Update
   if (requests.length > 0) {
-      await fetch(`https://slides.googleapis.com/v1/presentations/${presentationId}:batchUpdate`, {
+      const batchRes = await fetch(`https://slides.googleapis.com/v1/presentations/${presentationId}:batchUpdate`, {
         method: 'POST',
         headers: {
           Authorization: `Bearer ${accessToken}`,
@@ -411,6 +416,12 @@ export const createGoogleSlidePresentation = async (
         },
         body: JSON.stringify({ requests }),
       });
+      
+      if (!batchRes.ok) {
+          const batchError = await batchRes.json();
+          console.error('Batch Update Error Details:', JSON.stringify(batchError, null, 2));
+          alert(`Erro ao preencher slides: ${batchError.error?.message || 'Verifique o console'}`);
+      }
   }
 
   return `https://docs.google.com/presentation/d/${presentationId}/edit`;
