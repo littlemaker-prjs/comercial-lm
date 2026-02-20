@@ -1,12 +1,13 @@
-
 import React, { useState } from 'react';
 import { AppState, CategoryType } from '../types';
-import { Download, CheckSquare, Edit3 } from 'lucide-react';
+import { Download, CheckSquare, Edit3, Presentation, Loader2 } from 'lucide-react';
 import { useSettings } from '../contexts/SettingsContext';
-import { PROPOSAL_TEXTS } from '../constants';
-
-// Declare html2pdf for TypeScript
-declare var html2pdf: any;
+import { PROPOSAL_TEXTS, INFRA_DETAILS, AMBIENTATION_IMAGES, LOGO_BASE64 } from '../constants';
+import PptxGenJS from 'pptxgenjs';
+import { auth, googleProvider } from '../firebase';
+import { createGoogleSlidePresentation } from '../utils/googleSlides';
+import firebase from 'firebase/compat/app';
+import 'firebase/compat/auth';
 
 interface ProposalViewProps {
   appState: AppState;
@@ -14,16 +15,15 @@ interface ProposalViewProps {
   onSave?: () => void;
   isSaving?: boolean;
   user?: any;
-  isMaster: boolean; // Received from App
+  isMaster: boolean; 
 }
 
 export const ProposalView: React.FC<ProposalViewProps> = ({ appState, setAppState, onSave, isSaving, user, isMaster }) => {
-  const { settings } = useSettings(); // Use Global Settings
+  const { settings } = useSettings();
   const { selectedInfraIds, regionId, commercial } = appState;
-  
-  // Local state for field editing
   const [editingField, setEditingField] = useState<string | null>(null);
-  
+  const [isGeneratingSlides, setIsGeneratingSlides] = useState(false);
+
   // --- HELPERS ---
   const selectedItems = settings.infraCatalog.filter(i => selectedInfraIds.includes(i.id));
   const hasInfraItems = selectedItems.length > 0;
@@ -36,12 +36,7 @@ export const ProposalView: React.FC<ProposalViewProps> = ({ appState, setAppStat
             ...prev.commercial, 
             contractDuration: prev.commercial.contractDuration === 3 ? 1 : 3,
             applyInfraBonus: prev.commercial.contractDuration === 3 ? false : prev.commercial.applyInfraBonus,
-            // Reset manual bonuses to force recalculation based on new contract rules
-            customValues: {
-                ...prev.commercial.customValues,
-                materialBonus: undefined,
-                infraBonus: undefined
-            }
+            customValues: { ...prev.commercial.customValues, materialBonus: undefined, infraBonus: undefined }
         }
     }));
   };
@@ -55,12 +50,7 @@ export const ProposalView: React.FC<ProposalViewProps> = ({ appState, setAppStat
                 ...prev.commercial, 
                 useMarketplace: newVal,
                 applyInfraBonus: newVal ? prev.commercial.applyInfraBonus : false,
-                // Reset manual bonuses to force recalculation based on MP rules
-                customValues: {
-                    ...prev.commercial.customValues,
-                    materialBonus: undefined,
-                    infraBonus: undefined
-                }
+                customValues: { ...prev.commercial.customValues, materialBonus: undefined, infraBonus: undefined }
             }
         };
     });
@@ -72,21 +62,13 @@ export const ProposalView: React.FC<ProposalViewProps> = ({ appState, setAppStat
         commercial: { 
             ...prev.commercial, 
             applyInfraBonus: !prev.commercial.applyInfraBonus,
-            // Reset manual bonuses to force recalculation to original logic
-            customValues: {
-                ...prev.commercial.customValues,
-                materialBonus: undefined,
-                infraBonus: undefined
-            }
+            customValues: { ...prev.commercial.customValues, materialBonus: undefined, infraBonus: undefined }
         }
     }));
   };
 
   const updateStudents = (val: number) => {
-    setAppState(prev => ({
-        ...prev,
-        commercial: { ...prev.commercial, totalStudents: val }
-    }));
+    setAppState(prev => ({ ...prev, commercial: { ...prev.commercial, totalStudents: val } }));
   };
 
   const updateOverride = (field: keyof NonNullable<typeof commercial.customValues>, value: number) => {
@@ -94,36 +76,12 @@ export const ProposalView: React.FC<ProposalViewProps> = ({ appState, setAppStat
           ...prev,
           commercial: {
               ...prev.commercial,
-              customValues: {
-                  ...prev.commercial.customValues,
-                  [field]: value
-              }
+              customValues: { ...prev.commercial.customValues, [field]: value }
           }
       }));
   };
 
-  const handleDownloadPDF = () => {
-    const element = document.getElementById('proposal-content');
-    if (!element) return;
-
-    const opt = {
-      margin: 0,
-      filename: `Proposta_${appState.client.schoolName.replace(/[^a-z0-9]/gi, '_').toLowerCase()}.pdf`,
-      image: { type: 'jpeg', quality: 0.98 },
-      html2canvas: { scale: 2 },
-      jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
-    };
-
-    if (typeof html2pdf !== 'undefined') {
-        html2pdf().set(opt).from(element).save();
-    } else {
-        window.print();
-    }
-  };
-
-  // --- FINANCIAL CALCULATIONS ---
-
-  // 1. Base Price Lookup (Tiered)
+  // --- CALCULATIONS (Replicated for View & PPTX) ---
   const getBaseMaterialPrice = (students: number) => {
     if (students >= 800) return 240;
     if (students >= 400) return 280;
@@ -133,39 +91,24 @@ export const ProposalView: React.FC<ProposalViewProps> = ({ appState, setAppStat
   };
 
   const basePricePerStudentYearTiered = getBaseMaterialPrice(commercial.totalStudents);
-  
-  // LOGIC: Use Override if exists, else Tiered
   const basePricePerStudentYear = commercial.customValues?.materialPricePerYear !== undefined 
     ? commercial.customValues.materialPricePerYear 
     : basePricePerStudentYearTiered;
-
-  const baseContractValue3Years = basePricePerStudentYear * commercial.totalStudents * 3;
   
-  // 2. Infra Base Calculations
   const currentRegion = settings.regions.find(r => r.id === regionId) || settings.regions[0];
   const infraSum = selectedItems.reduce((sum, i) => sum + i.price, 0);
-  
   let freightCost = 0;
   if (hasInfraItems) {
       const requiresAssembly = selectedItems.some(i => i.requiresAssembly);
       freightCost = requiresAssembly ? currentRegion.priceAssembly : currentRegion.priceSimple;
   }
-  
   const totalInfraCalculated = infraSum + freightCost;
-  
-  // LOGIC: Use Override if exists, else Calculated
-  const totalInfraGross = commercial.customValues?.infraTotal !== undefined
-    ? commercial.customValues.infraTotal
-    : totalInfraCalculated;
+  const totalInfraGross = commercial.customValues?.infraTotal !== undefined ? commercial.customValues.infraTotal : totalInfraCalculated;
 
-  // 3. Discount & Rate Logic
   let appliedRatePerStudentYear = 0;
-
   if (commercial.customValues?.materialPricePerYear !== undefined) {
-      // Master Override Active: Value is absolute
       appliedRatePerStudentYear = commercial.customValues.materialPricePerYear;
   } else {
-      // Standard Calculation - USE SETTINGS MARGIN
       appliedRatePerStudentYear = commercial.useMarketplace 
         ? basePricePerStudentYearTiered / settings.variables.marketplaceMargin 
         : basePricePerStudentYearTiered;
@@ -173,70 +116,49 @@ export const ProposalView: React.FC<ProposalViewProps> = ({ appState, setAppStat
 
   let materialDiscountAmount = 0;
   let infraDiscountAmount = 0;
-  let isCalculatedMaterialBonus = false;
   
   if (commercial.contractDuration === 3) {
       const referenceContractValue = appliedRatePerStudentYear * commercial.totalStudents * 3;
-
       if (commercial.useMarketplace && commercial.applyInfraBonus && hasInfraItems) {
-          // Scenario: Infra Bonus - USE SETTINGS VARIABLE
           const calculatedInfraBonus = referenceContractValue * settings.variables.infraBonus;
-          
           if (calculatedInfraBonus > totalInfraGross) {
               infraDiscountAmount = totalInfraGross;
-              const overflow = calculatedInfraBonus - totalInfraGross;
-              materialDiscountAmount = overflow;
+              materialDiscountAmount = calculatedInfraBonus - totalInfraGross;
           } else {
               infraDiscountAmount = calculatedInfraBonus;
               materialDiscountAmount = 0;
           }
       } else {
-          // Scenario: Standard Material Discount - USE SETTINGS VARIABLE
           const effectiveApplyInfra = commercial.applyInfraBonus && hasInfraItems && commercial.useMarketplace;
           if (!effectiveApplyInfra) {
               materialDiscountAmount = referenceContractValue * settings.variables.materialBonus;
-              isCalculatedMaterialBonus = true;
           }
       }
   }
 
-  // LOGIC: Overrides for Bonuses take precedence
   if (commercial.customValues?.materialBonus !== undefined) materialDiscountAmount = commercial.customValues.materialBonus;
   if (commercial.customValues?.infraBonus !== undefined) infraDiscountAmount = commercial.customValues.infraBonus;
 
-  // DYNAMIC LABEL CALCULATION
-  let materialBonusLabel = "Saldo Bônus Infraestrutura";
-  if (isCalculatedMaterialBonus || commercial.customValues?.materialBonus !== undefined) {
-      // Calculate effective Percentage and Months based on the discount amount vs Total Contract
-      const totalContractValueRaw = appliedRatePerStudentYear * commercial.totalStudents * 3;
-      
-      if (totalContractValueRaw > 0 && materialDiscountAmount > 0) {
-          const discountPct = (materialDiscountAmount / totalContractValueRaw) * 100;
-          const monthsFree = (materialDiscountAmount / totalContractValueRaw) * 36;
-          
-          materialBonusLabel = `Bônus fidelidade ${discountPct.toLocaleString('pt-BR', { maximumFractionDigits: 1 })}% (${monthsFree.toLocaleString('pt-BR', { maximumFractionDigits: 1 })} meses grátis)`;
-      } else {
-          materialBonusLabel = "Bônus fidelidade";
-      }
-  }
-
-
   const grossContractMaterial = appliedRatePerStudentYear * commercial.totalStudents * 3;
   const netContractMaterial = grossContractMaterial - materialDiscountAmount;
-  
   const finalMaterialRatePerYear = netContractMaterial / 3 / commercial.totalStudents;
   const finalMaterialRatePerMonth = finalMaterialRatePerYear / 12;
-
   const totalInfraNet = totalInfraGross - infraDiscountAmount;
   const infraInstallment = totalInfraNet / 3;
 
-  // --- CAPACITY CALCULATIONS ---
+  // Bundle Calculations for passing to API
+  const calculationData = {
+      totalStudents: commercial.totalStudents,
+      totalMaterialYear: grossContractMaterial / 3, // Normalized year value
+      totalInfra: totalInfraGross
+  };
+
+  // --- CAPACITY HELPERS ---
   const calculateCapacity = (category: CategoryType) => {
     let furnitureCap = 0;
     let toolCap = 0;
     const items = selectedItems.filter(i => i.category === category);
     
-    // Furniture Cap logic...
     if (category === 'maker') {
         if (selectedInfraIds.includes('maker_padrao_24')) furnitureCap += 24;
         if (selectedInfraIds.includes('maker_up_12')) furnitureCap += 12;
@@ -252,7 +174,6 @@ export const ProposalView: React.FC<ProposalViewProps> = ({ appState, setAppStat
     }
 
     toolCap = furnitureCap;
-    // Restrictions logic...
     if (category === 'maker' && selectedInfraIds.includes('maker_ferr_red_18')) toolCap = 18;
     else if (category === 'maker' && selectedInfraIds.includes('maker_minima')) {
         toolCap = 24; 
@@ -262,127 +183,44 @@ export const ProposalView: React.FC<ProposalViewProps> = ({ appState, setAppStat
         toolCap = 18; 
         if (selectedInfraIds.includes('infantil_ferr_up_6')) toolCap += 6;
     }
-
     return { num: furnitureCap, numf: toolCap };
   };
 
-  // --- SYMBOLS ---
-  let symbolCounter = 0;
-  const getNextSymbol = () => {
-    const symbols = ['*', '**', '***', '****'];
-    return symbols[symbolCounter++] || '*';
-  };
-
-  const materialHasMp = commercial.useMarketplace;
-  const materialHasDiscount = commercial.contractDuration === 3 && !commercial.applyInfraBonus;
-  const showMaterialNote = materialHasMp || materialHasDiscount;
-  const materialSymbol = showMaterialNote ? getNextSymbol() : '';
-
-  const showInfraBonusNote = commercial.contractDuration === 3 && commercial.applyInfraBonus && hasInfraItems && commercial.useMarketplace;
-  const infraBonusSymbol = showInfraBonusNote ? getNextSymbol() : '';
-
-  const showRegionNote = hasInfraItems; 
-  const regionSymbol = showRegionNote ? getNextSymbol() : '';
-
-  // --- TEXT RENDERERS ---
   const replacePlaceholders = (text: string, num: number, numf: number) => {
     return text.replace('{{num}}', num.toString()).replace('{{numf}}', numf.toString());
   };
 
-  // --- RENDER FUNCTIONS WITH LOGIC ---
-  const renderCarrinhoText = () => {
-    const caps = calculateCapacity('infantil');
-    const t = PROPOSAL_TEXTS.infantil_carrinho;
-    return (
-        <div className="mb-6">
-            <h3 className="font-bold text-lg text-slate-800 mb-1 border-b border-slate-200 pb-1">{t.title}</h3>
-            <p className="mb-2 text-slate-600 text-sm italic">{t.subtitle}</p>
-            <ul className="list-disc pl-5 space-y-1 text-slate-700 text-sm">
-                {t.items.map((item, idx) => (
-                    <li key={idx}>{replacePlaceholders(item, caps.num, caps.numf)}</li>
-                ))}
-            </ul>
-        </div>
-    );
+  // --- GOOGLE SLIDES GENERATION ---
+  const handleGoogleSlidesGeneration = async () => {
+    setIsGeneratingSlides(true);
+    try {
+        // 1. We need an Access Token. We force a re-auth/popup to grant scopes if needed.
+        // Add scopes for Drive/Slides
+        const provider = new firebase.auth.GoogleAuthProvider();
+        provider.addScope('https://www.googleapis.com/auth/presentations');
+        provider.addScope('https://www.googleapis.com/auth/drive.file');
+        
+        // This will trigger a popup asking for permission
+        const result = await auth.signInWithPopup(provider);
+        const credential = result.credential as any; // Cast to access accessToken
+        const accessToken = credential?.accessToken;
+
+        if (!accessToken) throw new Error("Não foi possível obter permissão de acesso.");
+
+        // 2. Call Generator Service
+        const editUrl = await createGoogleSlidePresentation(accessToken, appState, calculationData);
+        
+        // 3. Open the new presentation
+        window.open(editUrl, '_blank');
+
+    } catch (error: any) {
+        console.error("Google Slides Error:", error);
+        alert(`Erro ao gerar slides: ${error.message}`);
+    } finally {
+        setIsGeneratingSlides(false);
+    }
   };
 
-  const renderInfantilOficinaText = () => {
-      const caps = calculateCapacity('infantil');
-      const t = PROPOSAL_TEXTS.infantil_oficina;
-      const title = replacePlaceholders(t.title, caps.num, caps.numf);
-      return (
-        <div className="mb-6">
-            <h3 className="font-bold text-lg text-slate-800 mb-1 border-b border-slate-200 pb-1">{title}</h3>
-            <p className="mb-2 text-slate-600 text-sm italic">{t.subtitle}</p>
-            <ul className="list-disc pl-5 space-y-1 text-slate-700 text-sm">
-                 {t.items.map((item, idx) => (
-                    <li key={idx}>{replacePlaceholders(item, caps.num, caps.numf)}</li>
-                ))}
-            </ul>
-        </div>
-      );
-  }
-
-  const renderMakerText = () => {
-      const caps = calculateCapacity('maker');
-      const isMinima = selectedInfraIds.includes('maker_minima');
-      const hasReduzida = selectedInfraIds.includes('maker_ferr_red_18');
-      const hasPadrao = selectedInfraIds.includes('maker_ferr_padrao');
-      const hasDigitais = selectedInfraIds.includes('maker_ferr_digitais');
-      const hasPC = selectedInfraIds.includes('maker_ferr_pc');
-
-      let t = PROPOSAL_TEXTS.maker_padrao;
-
-      // Logic to determine variant
-      if (isMinima) {
-          if (hasReduzida) t = PROPOSAL_TEXTS.maker_minima_reduzida;
-          else if (hasPadrao) t = PROPOSAL_TEXTS.maker_minima_padrao;
-          else t = PROPOSAL_TEXTS.maker_minima_solo;
-      } else {
-          if (hasPC && hasDigitais) t = PROPOSAL_TEXTS.maker_completa_pc;
-          else if (hasDigitais) t = PROPOSAL_TEXTS.maker_completa;
-          else t = PROPOSAL_TEXTS.maker_padrao;
-      }
-      
-      const title = replacePlaceholders(t.title, caps.num, caps.numf);
-
-      return (
-        <div className="mb-6">
-            <h3 className="font-bold text-lg text-slate-800 mb-1 border-b border-slate-200 pb-1">{title}</h3>
-            <p className="mb-2 text-slate-600 text-sm italic">{t.subtitle}</p>
-            <ul className="list-disc pl-5 space-y-1 text-slate-700 text-sm">
-                {t.items.map((item, idx) => (
-                    <li key={idx}>{replacePlaceholders(item, caps.num, caps.numf)}</li>
-                ))}
-            </ul>
-        </div>
-      );
-  }
-
-  const renderMidiaText = () => {
-      const caps = calculateCapacity('midia');
-      const hasPC = selectedInfraIds.includes('midia_ferr_pc');
-      
-      const t = hasPC ? PROPOSAL_TEXTS.midia_com_computadores : PROPOSAL_TEXTS.midia_padrao;
-      const title = replacePlaceholders(t.title, caps.num, caps.numf);
-
-      return (
-        <div className="mb-6">
-            <h3 className="font-bold text-lg text-slate-800 mb-1 border-b border-slate-200 pb-1">{title}</h3>
-            <p className="mb-2 text-slate-600 text-sm italic">{t.subtitle}</p>
-            <ul className="list-disc pl-5 space-y-1 text-slate-700 text-sm">
-                 {t.items.map((item, idx) => (
-                    <li key={idx}>{replacePlaceholders(item, caps.num, caps.numf)}</li>
-                ))}
-            </ul>
-        </div>
-      );
-  }
-
-  const hasCarrinho = selectedInfraIds.includes('infantil_carrinho');
-  const hasInfantilOficina = selectedItems.some(i => i.category === 'infantil' && i.type === 'ambientacao' && i.id !== 'infantil_carrinho');
-  const hasMaker = selectedItems.some(i => i.category === 'maker' && (i.type === 'ambientacao' || i.id === 'maker_minima'));
-  const hasMidia = selectedItems.some(i => i.category === 'midia' && i.type === 'ambientacao');
 
   const CustomCheckbox = ({ checked, label, onChange }: { checked: boolean; label: string; onChange: () => void }) => (
     <div onClick={onChange} className="flex items-center gap-2 cursor-pointer group select-none">
@@ -445,26 +283,115 @@ export const ProposalView: React.FC<ProposalViewProps> = ({ appState, setAppStat
       );
   };
 
+  // --- VIEW RENDER HELPERS ---
+
+  const hasCarrinho = selectedInfraIds.includes('infantil_carrinho');
+  const hasInfantilOficina = selectedInfraIds.includes('infantil_padrao_18');
+  const hasMaker = selectedItems.some(i => i.category === 'maker');
+  const hasMidia = selectedItems.some(i => i.category === 'midia');
+
+  const materialSymbol = "*";
+  const infraBonusSymbol = "**";
+  const regionSymbol = "***";
+
+  const materialHasMp = commercial.useMarketplace;
+  const materialHasDiscount = commercial.contractDuration === 3 && !commercial.applyInfraBonus;
+  const showMaterialNote = materialHasMp || materialHasDiscount;
+  const showInfraBonusNote = commercial.contractDuration === 3 && commercial.applyInfraBonus && hasInfraItems && commercial.useMarketplace;
+  const showRegionNote = hasInfraItems;
+  
+  const renderScopeItem = (title: string, subtitle: string, items: string[]) => (
+      <div className="mb-6 break-inside-avoid">
+          <h3 className="font-bold text-slate-800 text-lg border-b border-slate-200 pb-1 mb-2">{title}</h3>
+          <p className="text-slate-500 text-sm italic mb-2">{subtitle}</p>
+          <ul className="list-disc pl-5 space-y-1 text-sm text-slate-700">
+              {items.map((it, idx) => <li key={idx}>{it}</li>)}
+          </ul>
+      </div>
+  );
+
+  const renderCarrinhoText = () => {
+      const t = PROPOSAL_TEXTS.infantil_carrinho;
+      return renderScopeItem(t.title, t.subtitle, t.items);
+  };
+
+  const renderInfantilOficinaText = () => {
+      const caps = calculateCapacity('infantil');
+      const t = PROPOSAL_TEXTS.infantil_oficina;
+      return renderScopeItem(
+          replacePlaceholders(t.title, caps.num, caps.numf),
+          t.subtitle,
+          t.items.map(i => replacePlaceholders(i, caps.num, caps.numf))
+      );
+  };
+
+  const renderMakerText = () => {
+      const caps = calculateCapacity('maker');
+      const isMinima = selectedInfraIds.includes('maker_minima');
+      const hasReduzida = selectedInfraIds.includes('maker_ferr_red_18');
+      const hasPadrao = selectedInfraIds.includes('maker_ferr_padrao');
+      const hasDigitais = selectedInfraIds.includes('maker_ferr_digitais');
+      const hasPC = selectedInfraIds.includes('maker_ferr_pc');
+      
+      let t = PROPOSAL_TEXTS.maker_padrao;
+      if (isMinima) {
+          if (hasReduzida) t = PROPOSAL_TEXTS.maker_minima_reduzida;
+          else if (hasPadrao) t = PROPOSAL_TEXTS.maker_minima_padrao;
+          else t = PROPOSAL_TEXTS.maker_minima_solo;
+      } else {
+          if (hasPC && hasDigitais) t = PROPOSAL_TEXTS.maker_completa_pc;
+          else if (hasDigitais) t = PROPOSAL_TEXTS.maker_completa;
+          else t = PROPOSAL_TEXTS.maker_padrao;
+      }
+
+      return renderScopeItem(
+          replacePlaceholders(t.title, caps.num, caps.numf),
+          t.subtitle,
+          t.items.map(i => replacePlaceholders(i, caps.num, caps.numf))
+      );
+  };
+
+  const renderMidiaText = () => {
+      const caps = calculateCapacity('midia');
+      const hasPC = selectedInfraIds.includes('midia_ferr_pc');
+      const t = hasPC ? PROPOSAL_TEXTS.midia_com_computadores : PROPOSAL_TEXTS.midia_padrao;
+
+      return renderScopeItem(
+          replacePlaceholders(t.title, caps.num, caps.numf),
+          t.subtitle,
+          t.items.map(i => replacePlaceholders(i, caps.num, caps.numf))
+      );
+  };
 
   return (
     <div className="h-full flex flex-col bg-slate-100 overflow-y-auto">
       
       {/* Toolbar */}
-      <div className="sticky top-0 z-10 bg-white border-b border-slate-200 px-8 py-4 flex justify-between items-center shadow-sm print:hidden">
-         <div className="flex items-center gap-4">
+      <div className="sticky top-0 z-10 bg-white border-b border-slate-200 px-8 py-4 flex flex-col md:flex-row justify-between items-center shadow-sm print:hidden gap-4">
+         <div className="flex items-center gap-4 flex-wrap">
             <CustomCheckbox checked={commercial.contractDuration === 3} onChange={toggleContract} label="Contrato de 3 anos" />
             <CustomCheckbox checked={commercial.useMarketplace} onChange={toggleMarketplace} label="Usar Market Place" />
             {commercial.useMarketplace && commercial.contractDuration === 3 && hasInfraItems && (
                 <CustomCheckbox checked={commercial.applyInfraBonus} onChange={toggleBonus} label="Bônus na infraestrutura" />
             )}
          </div>
-         <button onClick={handleDownloadPDF} className="flex items-center gap-2 bg-[#8BBF56] text-white px-5 py-2 rounded-lg font-bold hover:bg-[#7aa84b] transition-colors shadow-sm">
-            <Download className="w-4 h-4" />
-            Baixar PDF
-         </button>
+         <div className="flex gap-2">
+            <button onClick={() => window.print()} className="flex items-center gap-2 bg-slate-200 text-slate-700 px-5 py-2 rounded-lg font-bold hover:bg-slate-300 transition-colors shadow-sm">
+                <Download className="w-4 h-4" />
+                Imprimir PDF (Fiel)
+            </button>
+            <button 
+                onClick={handleGoogleSlidesGeneration} 
+                disabled={isGeneratingSlides}
+                className="flex items-center gap-2 bg-[#F24E1E] text-white px-5 py-2 rounded-lg font-bold hover:bg-[#d43d10] transition-colors shadow-sm disabled:opacity-70 disabled:cursor-wait"
+            >
+                {isGeneratingSlides ? <Loader2 className="w-4 h-4 animate-spin" /> : <Presentation className="w-4 h-4" />}
+                {isGeneratingSlides ? 'Gerando...' : 'Gerar Google Slides'}
+            </button>
+         </div>
       </div>
 
-      {/* Main Document View */}
+      {/* Main Document View (PREVIEW HTML) */}
       <div className="flex-1 p-8 print:p-0 flex justify-center">
         <div id="proposal-content" className="w-[210mm] bg-white min-h-[297mm] shadow-2xl print:shadow-none p-12 print:p-8 flex flex-col relative print:w-full">
           
@@ -494,15 +421,18 @@ export const ProposalView: React.FC<ProposalViewProps> = ({ appState, setAppStat
                 <div className="grid grid-cols-[1fr_auto] text-sm">
                     {/* Alunos */}
                     <div className="py-3 px-4 font-medium text-slate-700 border-b border-slate-100 flex items-center">Total de Alunos</div>
-                    <div className="py-2 px-4 text-right bg-white border-b border-slate-100">
-                        <input type="number" value={commercial.totalStudents} onChange={(e) => updateStudents(parseInt(e.target.value) || 0)} className="bg-slate-50 text-slate-900 text-right font-bold w-20 py-1 px-1 outline-none focus:bg-white focus:ring-1 focus:ring-[#8BBF56] rounded transition-all border border-transparent hover:border-slate-200" />
+                    <div className="py-2 px-4 text-right bg-white border-b border-slate-100 print:py-3 print:px-4 print:font-bold">
+                        <div className="print:hidden">
+                            <input type="number" value={commercial.totalStudents} onChange={(e) => updateStudents(parseInt(e.target.value) || 0)} className="bg-slate-50 text-slate-900 text-right font-bold w-20 py-1 px-1 outline-none focus:bg-white focus:ring-1 focus:ring-[#8BBF56] rounded transition-all border border-transparent hover:border-slate-200" />
+                        </div>
+                        <div className="hidden print:block">{commercial.totalStudents}</div>
                     </div>
 
                     {/* Investimento Ano - Editable by Master */}
                     <div className="py-3 px-4 font-medium text-slate-700 border-b border-slate-100 flex items-center gap-2 group">
                         Investimento Aluno/ano {materialSymbol}
                         {isMaster && (
-                            <button onClick={() => setEditingField('materialPricePerYear')} className="opacity-0 group-hover:opacity-100 transition-opacity p-1 hover:bg-slate-100 rounded">
+                            <button onClick={() => setEditingField('materialPricePerYear')} className="opacity-0 group-hover:opacity-100 transition-opacity p-1 hover:bg-slate-100 rounded print:hidden">
                                 <Edit3 className="w-3 h-3 text-slate-400 hover:text-slate-600" />
                             </button>
                         )}
@@ -529,9 +459,9 @@ export const ProposalView: React.FC<ProposalViewProps> = ({ appState, setAppStat
                     {materialDiscountAmount > 0 && (
                         <>
                             <div className="py-2 px-4 font-medium text-slate-500 bg-white flex items-center gap-2 group">
-                                {materialBonusLabel}
+                                Bônus Fidelidade (Desc.)
                                 {isMaster && (
-                                    <button onClick={() => setEditingField('materialBonus')} className="opacity-0 group-hover:opacity-100 transition-opacity p-1 hover:bg-slate-100 rounded">
+                                    <button onClick={() => setEditingField('materialBonus')} className="opacity-0 group-hover:opacity-100 transition-opacity p-1 hover:bg-slate-100 rounded print:hidden">
                                         <Edit3 className="w-3 h-3 text-slate-400 hover:text-slate-600" />
                                     </button>
                                 )}
@@ -544,7 +474,7 @@ export const ProposalView: React.FC<ProposalViewProps> = ({ appState, setAppStat
                                         onUpdate={(val) => updateOverride('materialBonus', val)}
                                     />
                                 ) : (
-                                    materialDiscountAmount.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
+                                    `- ${materialDiscountAmount.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}`
                                 )}
                             </div>
                         </>
@@ -564,7 +494,7 @@ export const ProposalView: React.FC<ProposalViewProps> = ({ appState, setAppStat
                         <div className="py-3 px-4 font-medium text-slate-700 border-b border-slate-100 flex items-center gap-2 group">
                             Investimento Infraestrutura {regionSymbol}
                             {isMaster && (
-                                <button onClick={() => setEditingField('infraTotal')} className="opacity-0 group-hover:opacity-100 transition-opacity p-1 hover:bg-slate-100 rounded">
+                                <button onClick={() => setEditingField('infraTotal')} className="opacity-0 group-hover:opacity-100 transition-opacity p-1 hover:bg-slate-100 rounded print:hidden">
                                     <Edit3 className="w-3 h-3 text-slate-400 hover:text-slate-600" />
                                 </button>
                             )}
@@ -587,7 +517,7 @@ export const ProposalView: React.FC<ProposalViewProps> = ({ appState, setAppStat
                                 <div className="py-2 px-4 font-medium text-slate-700 border-b border-slate-100 flex items-center gap-2 group">
                                     Desconto do bônus fidelidade {infraBonusSymbol}
                                     {isMaster && (
-                                        <button onClick={() => setEditingField('infraBonus')} className="opacity-0 group-hover:opacity-100 transition-opacity p-1 hover:bg-slate-100 rounded">
+                                        <button onClick={() => setEditingField('infraBonus')} className="opacity-0 group-hover:opacity-100 transition-opacity p-1 hover:bg-slate-100 rounded print:hidden">
                                             <Edit3 className="w-3 h-3 text-slate-400 hover:text-slate-600" />
                                         </button>
                                     )}
@@ -624,7 +554,7 @@ export const ProposalView: React.FC<ProposalViewProps> = ({ appState, setAppStat
             </div>
           )}
 
-          {/* DETALHAMENTO */}
+          {/* ESCOPO MACRO */}
           <div className="mb-10 break-inside-avoid">
              {hasCarrinho && renderCarrinhoText()}
              {hasInfantilOficina && renderInfantilOficinaText()}
@@ -632,7 +562,7 @@ export const ProposalView: React.FC<ProposalViewProps> = ({ appState, setAppStat
              {hasMidia && renderMidiaText()}
           </div>
 
-          {/* Footer Notes */}
+          {/* Footer Notes (Page 1) */}
           <div className="mt-auto pt-8 border-t border-slate-200">
               <div className="text-[10px] text-slate-500 space-y-1">
                 {showMaterialNote && (
@@ -653,6 +583,10 @@ export const ProposalView: React.FC<ProposalViewProps> = ({ appState, setAppStat
                 {showRegionNote && <p>{regionSymbol} Região de entrega considerada: <strong>{currentRegion.label}</strong>.</p>}
                 <p className="pt-2 font-medium text-slate-600">Proposta válida por 30 dias a partir da data de emissão.</p>
             </div>
+          </div>
+
+          <div className="text-center mt-12 text-slate-400 text-sm border-t pt-4 print:hidden">
+              <p>Esta é uma visualização simplificada. Utilize "Imprimir PDF" para salvar uma versão fiel.</p>
           </div>
 
         </div>

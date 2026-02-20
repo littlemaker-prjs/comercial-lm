@@ -1,10 +1,15 @@
 
-import { InfraItem, Region, AppState } from './types';
+import { InfraItem, Region, AppState, TechDetail } from './types';
 
 export const SUPER_ADMINS = [
   'diego.thuler@littlemaker.com.br',
-  'denise.thuler@littlemaker.com.br'
+  'denise@littlemaker.com.br'
 ];
+
+// Base64 Placeholder for Logo to prevent CORS errors in PPTX generation.
+// This is a 1x1 transparent pixel placeholder. 
+// You should replace this string with the actual Base64 of your logo.
+export const LOGO_BASE64 = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAMgAAAAyCAYAAAAZUD4GAAAABHNCSVQICAgIfAhkiAAAAAlwSFlzAAALEgAACxIB0t1+/AAAABZ0RVh0Q3JlYXRpb24gVGltZQAwMi8yNy8yNPM2T6kAAAAcdEVYdFNvZnR3YXJlAEFkb2JlIEZpcmV3b3JrcyBDUzVxteM2AAABSURBWHic7doxSwNBFIbRQ0gQ0gZBLAyC2BhaCBaChWghWAgWgoVgIVgIFoKFYCFYCBaxEAtBEMQihf/AAzKwhZ29zL4334FD2F02++zOsrM7DwAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACAt/S8H0BvGvj+A73p4PsP9KaB7z/Qmw7/8/0F+tL993c4/hA933+gN939/gO9aeD7D/Smge8/0JsGvv9Abxr4/gO9aeD7D/Smge8/0JsGvv9Abxr4/gO9aeD7D/Smge8/0JsGvv9Abxr4/gO9aeD7D/Smge8/0JsGvv9Abxr4/gO9aeD7D/Smge8/0JsGvv9Abxr4/gO9aeD7D/Smge8/0JsGvv9Abxr4/gO9aeD7D/Smge8/0JsGvv9Abxr4/gO9aeD7D/Smge8/0JsGvv9Abxr4/gO9aeD7D/Smge8/0JsGvv9Abxr4/gO96eT7D/Sm+99/oDcAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAADgV34AoKZX59M1g3AAAAAASUVORK5CYII=";
 
 export const REGIONS: Region[] = [
   { id: 'ate_700', label: 'Até 700Km', priceSimple: 1500, priceAssembly: 4000 },
@@ -15,7 +20,6 @@ export const REGIONS: Region[] = [
   { id: 'norte', label: 'Norte', priceSimple: 5000, priceAssembly: 21800 },
 ];
 
-// Mapeamento exato dos textos da planilha CSV
 export const PROPOSAL_TEXTS = {
   // --- INFANTIL ---
   infantil_carrinho: {
@@ -117,36 +121,6 @@ export const PROPOSAL_TEXTS = {
     ]
   }
 };
-
-export const BRAZIL_STATES = [
-    { uf: 'AC', name: 'Acre', region: 'norte' },
-    { uf: 'AL', name: 'Alagoas', region: 'nordeste' },
-    { uf: 'AP', name: 'Amapá', region: 'norte' },
-    { uf: 'AM', name: 'Amazonas', region: 'norte' },
-    { uf: 'BA', name: 'Bahia', region: 'nordeste' },
-    { uf: 'CE', name: 'Ceará', region: 'nordeste' },
-    { uf: 'DF', name: 'Distrito Federal', region: 'centro_oeste' },
-    { uf: 'ES', name: 'Espírito Santo', region: 'sudeste' },
-    { uf: 'GO', name: 'Goiás', region: 'centro_oeste' },
-    { uf: 'MA', name: 'Maranhão', region: 'nordeste' },
-    { uf: 'MT', name: 'Mato Grosso', region: 'centro_oeste' },
-    { uf: 'MS', name: 'Mato Grosso do Sul', region: 'centro_oeste' },
-    { uf: 'MG', name: 'Minas Gerais', region: 'sudeste' },
-    { uf: 'PA', name: 'Pará', region: 'norte' },
-    { uf: 'PB', name: 'Paraíba', region: 'nordeste' },
-    { uf: 'PR', name: 'Paraná', region: 'sul' },
-    { uf: 'PE', name: 'Pernambuco', region: 'nordeste' },
-    { uf: 'PI', name: 'Piauí', region: 'nordeste' },
-    { uf: 'RJ', name: 'Rio de Janeiro', region: 'sudeste' },
-    { uf: 'RN', name: 'Rio Grande do Norte', region: 'nordeste' },
-    { uf: 'RS', name: 'Rio Grande do Sul', region: 'sul' },
-    { uf: 'RO', name: 'Rondônia', region: 'norte' },
-    { uf: 'RR', name: 'Roraima', region: 'norte' },
-    { uf: 'SC', name: 'Santa Catarina', region: 'sul' },
-    { uf: 'SP', name: 'São Paulo', region: 'ate_700' },
-    { uf: 'SE', name: 'Sergipe', region: 'nordeste' },
-    { uf: 'TO', name: 'Tocantins', region: 'norte' }
-];
 
 export const INFRA_CATALOG: InfraItem[] = [
   // --- Mídia Fundamental e Médio ---
@@ -363,3 +337,359 @@ export const INITIAL_APP_STATE: AppState = {
     customValues: {} // Start empty
   }
 };
+
+// --- DATA FOR TECHNICAL DESCRIPTION ---
+export const AMBIENTATION_IMAGES: Record<string, string> = {
+    'maker_padrao': 'https://placehold.co/600x400/71477A/FFF?text=Ambientacao+Maker+Padrao',
+    'maker_minima': 'https://placehold.co/600x400/71477A/FFF?text=Ambientacao+Maker+Minima',
+    'midia_padrao': 'https://placehold.co/600x400/71477A/FFF?text=Ambientacao+Midia+Padrao',
+    'infantil_oficina': 'https://placehold.co/600x400/71477A/FFF?text=Oficina+Infantil',
+    'infantil_carrinho': 'https://placehold.co/600x400/71477A/FFF?text=Carrinho+Infantil',
+};
+
+export const INFRA_DETAILS: Record<string, TechDetail> = {
+    // --- MAKER AMBIENTAÇÃO ---
+    'maker_padrao_24': {
+        items: [
+            { qty: 2, name: "Bancadas maker (LxAxP): 1.25m x 90cm x 65cm" },
+            { qty: 4, name: "Mesas maker (LxAxP): 80cm x 74cm x 1.20m" },
+            { qty: 24, name: "Banquetas de aço: 45cm de altura" },
+            { qty: 2, name: "Módulos colmeia (LxAxP): 1.20m x 2.50m x 40cm" },
+            { qty: 1, name: "Baú (LxAxP): 60cm x 60cm x 1.20m" },
+            { qty: 6, name: "Lousas brancas (AxL): 40cm x 60cm" },
+            { qty: 3, name: "Grades (AxL): 1.00m x 60cm" },
+            { qty: 8, name: "Conectivos para grade" },
+            { qty: 4, name: "Luminárias pendentes 45 cm de diâmetro" },
+            { qty: 9, name: "Spots de iluminação" },
+            { qty: 4, name: "Suportes para lousas" },
+            { qty: 2, name: "Suportes para colas quentes em aço" },
+            { qty: 16, name: "Cestos organizadores P" },
+            { qty: 8, name: "Cestos organizadores M" },
+            { qty: 4, name: "Cestos organizadores G" },
+            { qty: 20, name: "Cachepôs" },
+            { qty: 8, name: "Cestos para eletrônicos" },
+            { qty: 1, name: "Tambor de lixo" },
+            { qty: 16, name: "Caixas plásticas pretas" },
+            { qty: 2, name: "Carrinhos de ferramentas" },
+            { qty: 1, name: "Kit de Adesivos de sinalização de materiais" },
+            { qty: 1, name: "Luminária torneira" }
+        ],
+        identityItems: [
+            { qty: 1, name: "Placa de parceria" },
+            { qty: 1, name: "Banner de divulgação" },
+            { qty: 1, name: "Totem de divulgação" },
+            { qty: 1, name: "Placa com adesivo logo (LxA): 1.20m x 0.50m" },
+            { qty: 1, name: "Placa com adesivo tag cloud (Lx A): 1,20m x 0.80m" },
+            { qty: 1, name: "Adesivo CRIE transparente (LxA) - 1.60m x 1.10m" },
+            { qty: 1, name: "Adesivo tijolo (LxA): 1.70m x 0.94m" },
+            { qty: 1, name: "Kit de adesivos elementos (LxA): 35cm x 35cm" },
+            { qty: 1, name: "Faixa de identificação da porta" }
+        ]
+    },
+    'maker_up_12': {
+        items: [
+            { qty: 1, name: "Bancadas maker (LxAxP): 1.25m x 90cm x 65cm" },
+            { qty: 2, name: "Mesas maker (LxAxP): 80cm x 74cm x 1.20m" },
+            { qty: 12, name: "Banquetas de aço: 45cm de altura" },
+            { qty: 1, name: "Módulos colmeia (LxAxP): 1.20m x 2.50m x 40cm" },
+            { qty: 2, name: "Luminárias pendentes 45 cm de diâmetro" },
+            { qty: 8, name: "Caixas plásticas pretas" },
+            { qty: 3, name: "Spots de iluminação" }
+        ]
+    },
+    'maker_up_6': {
+        items: [
+            { qty: 1, name: "Mesas maker (LxAxP): 80cm x 74cm x 1.20m" },
+            { qty: 6, name: "Banquetas de aço: 45cm de altura" },
+            { qty: 1, name: "Luminárias pendentes 45 cm de diâmetro" },
+            { qty: 3, name: "Spots de iluminação" }
+        ]
+    },
+    'maker_minima': {
+        items: [
+            { qty: 3, name: "Grades (AxL): 1.00m x 60cm" },
+            { qty: 8, name: "Conectivos para grade" },
+            { qty: 1, name: "Suportes para colas quentes em aço" },
+            { qty: 16, name: "Cestos organizadores P" },
+            { qty: 8, name: "Cestos organizadores M" },
+            { qty: 4, name: "Cestos organizadores G" },
+            { qty: 20, name: "Cachepôs" },
+            { qty: 8, name: "Cestos para eletrônicos" },
+            { qty: 2, name: "Caixa Container 65l" },
+            { qty: 1, name: "Kit de Adesivos de sinalização de materiais" }
+        ],
+        identityItems: [
+            { qty: 1, name: "Placa de parceria" },
+            { qty: 1, name: "Banner de divulgação" }
+        ]
+    },
+
+    // --- MÍDIA AMBIENTAÇÃO ---
+    'midia_padrao_24': {
+        items: [
+            { qty: 2, name: "Bancadas maker (LxAxP): 1.25m x 90cm x 65cm" },
+            { qty: 4, name: "Mesas maker (LxAxP): 80cm x 74cm x 1.20m" },
+            { qty: 24, name: "Banquetas de aço: 45cm de altura" },
+            { qty: 2, name: "Mesas escritório(LxAxP): 60cm x 74cm x 1.20m" },
+            { qty: 1, name: "Espelho camarim (LxAxP): 90cm x 70cm x 30cm" },
+            { qty: 1, name: "Cadeira camarim (AxL): 82cm x 47cm" },
+            { qty: 1, name: "Cadeira diretor (AxL): 82cm x 54cm" },
+            { qty: 2, name: "Banquetas altas 1.0m de altura" },
+            { qty: 6, name: "Lousas brancas (AxL): 40cm x 60cm" },
+            { qty: 2, name: "Pastas A4 com 50 plásticos" },
+            { qty: 1, name: "Claquete de madeira (LxA): 29cm x 27cm" },
+            { qty: 3, name: "Grades (AxL): 1.00m x 60cm" },
+            { qty: 8, name: "Conectivos para grade" },
+            { qty: 2, name: "Stops para lousas" },
+            { qty: 1, name: "Suportes para colas quentes em aço" }, 
+            { qty: 3, name: "Chapas metálicas de suporte para lousas" },
+            { qty: 16, name: "Cestos organizadores P" },
+            { qty: 8, name: "Cestos organizadores M" },
+            { qty: 4, name: "Cestos organizadores G" },
+            { qty: 20, name: "Cachepôs" },
+            { qty: 8, name: "Cestos para eletrônicos" }, 
+            { qty: 1, name: "Tambor de lixo" },
+            { qty: 1, name: "Carrinhos de ferramentas" }, 
+            { qty: 1, name: "Kit de Adesivos de sinalização de materiais" }, 
+            { qty: 12, name: "Spots de iluminação" },
+            { qty: 1, name: "Espelho de corpo inteiro (LxA): 0.70 cm x 1.15m" },
+            { qty: 1, name: "Cabideiro" },
+            { qty: 1, name: "Luminária canhão" },
+            { qty: 1, name: "Lona Chroma Key" },
+            { qty: 1, name: "Varão de cortina para chroma key" },
+            { qty: 1, name: "Conjunto de prendedor para chroma key (6 unidades)" },
+            { qty: 6, name: "Ganchos" },
+            { qty: 1, name: "Fio de Nylon (10 m)" },
+            { qty: 1, name: "Fita dupla face 3M" }
+        ],
+        identityItems: [
+            { qty: 1, name: "Placa de parceria" },
+            { qty: 1, name: "Banner de divulgação" },
+            { qty: 1, name: "Totem de divulgação" },
+            { qty: 1, name: "Placa com adesivo logo (LxA): 1.20m x 0.50m" },
+            { qty: 1, name: "Adesivo CRIE transparente (LxA) - 1.60m x 1.10m" },
+            { qty: 1, name: "Faixa de identificação da porta" }
+        ]
+    },
+    'midia_up_12': {
+        items: [
+            { qty: 2, name: "Mesas maker (LxAxP): 80cm x 74cm x 1.20m" },
+            { qty: 12, name: "Banquetas de aço: 45cm de altura" },
+            { qty: 4, name: "Spots de iluminação" }
+        ]
+    },
+    'midia_up_6': {
+        items: [
+            { qty: 1, name: "Mesas maker (LxAxP): 80cm x 74cm x 1.20m" },
+            { qty: 6, name: "Banquetas de aço: 45cm de altura" },
+            { qty: 2, name: "Spots de iluminação" }
+        ]
+    },
+
+    // --- INFANTIL AMBIENTAÇÃO ---
+    'infantil_padrao_18': {
+        items: [
+            { qty: 2, name: "Bancadas infantil (LxAxP): 1.25m x 60cm x 65cm" },
+            { qty: 2, name: "Baús infantil (LxAxP): 40cm x 60cm x 50cm" },
+            { qty: 2, name: "Puffs (AxL): 39cm x 34cm" },
+            { qty: 3, name: "Mesas tatame (LxAxP): 80cm x 30cm x 1.20m" },
+            { qty: 2, name: "Módulos colmeia infantil (LxAxP): 1.20m x 1.28m x 0.40cm" },
+            { qty: 3, name: "Grades (AxL): 1.00m x 60cm" },
+            { qty: 8, name: "Conectivos para grade" },
+            { qty: 1, name: "Luminária torneira" },
+            { qty: 16, name: "Cestos organizadores P" },
+            { qty: 8, name: "Cestos organizadores M" },
+            { qty: 4, name: "Cestos organizadores G" },
+            { qty: 20, name: "Cachepôs" },
+            { qty: 1, name: "Tambor de lixo" },
+            { qty: 10, name: "Caixas plásticas pretas" },
+            { qty: 4, name: "Luminárias pendente meia esfera (DxA): 30cm x 15cm" },
+            { qty: 9, name: "Spots de iluminação" },
+            { qty: 8, name: "Caixas organizadoras para colmeia do Infantil" },
+            { qty: 6, name: "Ganchos" },
+            { qty: 1, name: "Fio de Nylon (10 m)" }
+        ],
+        identityItems: [
+            { qty: 1, name: "Placa de parceria" },
+            { qty: 1, name: "Banner de divulgação" },
+            { qty: 1, name: "Totem de divulgação" },
+            { qty: 1, name: "Placa com adesivo logo (LxA): 1.20m x 0.50m" },
+            { qty: 1, name: "Adesivo tijolo (LxA): 1.70m x 0.94m" },
+            { qty: 1, name: "Faixa de identificação da porta" },
+            { qty: 1, name: "Adesivo cachorro (LxA): 40cm x 40cm" },
+            { qty: 1, name: "Adesivo CRIE transparente (LxA) - 1.60m x 1.10m" }, 
+            { qty: 1, name: "Kit Elementos do Infantil (AxL): Lâmpada, Nuvem, Engrenagem" },
+            { qty: 1, name: "Foguete (AxL): 2.19m x 1.38m" },
+            { qty: 1, name: "Planeta (AxL): 32.84cm x 60cm" }
+        ]
+    },
+    'infantil_up_12': {
+        items: [
+            { qty: 1, name: "Bancadas infantil (LxAxP): 1.25m x 60cm x 65cm" },
+            { qty: 2, name: "Mesas tatame (LxAxP): 80cm x 30cm x 1.20m" },
+            { qty: 1, name: "Módulos colmeia infantil (LxAxP): 1.20m x 1.28m x 0.40cm" },
+            { qty: 5, name: "Caixas plásticas pretas" },
+            { qty: 2, name: "Luminárias pendente meia esfera (DxA): 30cm x 15cm" },
+            { qty: 6, name: "Spots de iluminação" }
+        ]
+    },
+    'infantil_up_6': {
+        items: [
+            { qty: 1, name: "Mesas tatame (LxAxP): 80cm x 30cm x 1.20m" },
+            { qty: 2, name: "Spots de iluminação" }
+        ]
+    },
+    'infantil_carrinho': {
+        items: [
+            { qty: 1, name: "Carrinho Infantil (LxAxP): 50cm x 90cm x 90cm" }
+        ],
+        identityItems: [
+            { qty: 1, name: "Placa de parceria" },
+            { qty: 1, name: "Banner de divulgação" },
+            { qty: 1, name: "Totem de divulgação" },
+            { qty: 1, name: "Kit de Adesivo lateral" }
+        ]
+    },
+
+    // --- FERRAMENTAS MAKER ---
+    'maker_ferr_padrao': {
+        items: [
+            { qty: 4, name: "Tablets 3G 2GB preto" },
+            { qty: 4, name: "Capinhas de tablets" },
+            { qty: 4, name: "Máquinas de costura portátil manual" },
+            { qty: 1, name: "Caixa de ferramentas sanfonada (5 gavetas)" },
+            { qty: 1, name: "Jogo de ferramentas 1/4\" 129 peças" },
+            { qty: 1, name: "Micro retífica 3.6v Li 1 bateria 12 acessórios" },
+            { qty: 1, name: "Parafusadeira/Furadeira 12V com 13 acessórios" },
+            { qty: 4, name: "Canetas 3D ajustável velocidade e temperatura" },
+            { qty: 1, name: "Impressora 3D - Área de moldagem: 220x220x250mm³" },
+            { qty: 1, name: "Kit de eletrônicos com 60 módulos" },
+            { qty: 1, name: "Máquina de Costura Singer M2505" }
+        ]
+    },
+    'maker_ferr_red_18': {
+        items: [
+            { qty: 2, name: "Tablets 3G 2GB preto" },
+            { qty: 2, name: "Capinhas de tablets" },
+            { qty: 4, name: "Máquinas de costura portátil manual" },
+            { qty: 1, name: "Caixa de ferramentas sanfonada (5 gavetas)" },
+            { qty: 1, name: "Jogo de ferramentas 1/4\" 129 peças" },
+            { qty: 1, name: "Micro retífica 3.6v Li 1 bateria 12 acessórios" },
+            { qty: 1, name: "Parafusadeira/Furadeira 12V com 13 acessórios" },
+            { qty: 4, name: "Canetas 3D ajustável velocidade e temperatura" },
+            { qty: 1, name: "Kit de eletrônicos com 30 módulos" }
+        ]
+    },
+    'maker_ferr_digitais': {
+        items: [
+            { qty: 6, name: "Micro Bits" },
+            { qty: 1, name: "Cortadora a Laser - 8W Área de corte: 42 cm x 32 cm" },
+            { qty: 1, name: "Microbit de Expansão" }
+        ]
+    },
+    'maker_ferr_pc': {
+        items: [
+            { qty: 4, name: "Notebooks Intel Celeron N4020 4GB de RAM 128GB SSD, Intel UHD Graphics 600 1366x768px Windows 11" }
+        ]
+    },
+
+    // --- FERRAMENTAS MÍDIA ---
+    'midia_ferr_padrao': {
+        items: [
+            { qty: 4, name: "Micro Bits" },
+            { qty: 4, name: "Tablets 3G 2GB preto" },
+            { qty: 4, name: "Capinhas de tablets" },
+            { qty: 4, name: "Máquinas de costura portátil manual" },
+            { qty: 4, name: "Caneta 3D ajustável velocidade e temperatura led" },
+            { qty: 6, name: "Mesas animação 75x71x78" },
+            { qty: 3, name: "Mesas de desenho portátil A3" },
+            { qty: 1, name: "Mesa luz A4 desenho led branco usb" },
+            { qty: 1, name: "Microfone acústico - Difusor Acústico com espuma de isolamento" },
+            { qty: 1, name: "câmeras fotográfica DSLR" },
+            { qty: 4, name: "Microfones KP-917 condensador omnidirecional preto" },
+            { qty: 4, name: "Fone de ouvido over-ear gamer" },
+            { qty: 1, name: "Estabilizador de celular steadicam para vídeos em smartphone" },
+            { qty: 1, name: "Mini projetor 1800lm 100V/240V" },
+            { qty: 1, name: "Tripé, sombrinha e suporte para iluminação 2 metros" },
+            { qty: 1, name: "Máquina de costura reta portátil" },
+            { qty: 2, name: "Monitores led 19\" 100V/240V" },
+            { qty: 1, name: "Impressora ecotank a cor multifuncional com wifi preta 110V/220V" },
+            { qty: 1, name: "Carregador de pilhas" },
+            { qty: 1, name: "Pilha recarregável kit com 4 unidades" },
+            { qty: 1, name: "Tela branca projetor medida da 1,40m x 1,0m" },
+            { qty: 1, name: "Tripé câmera Canon 1,80m + suporte celular" },
+            { qty: 1, name: "Kit lentes para Tablet com 3 unidades" },
+            { qty: 1, name: "Powerbank carregador portátil" },
+            { qty: 1, name: "Alto-falante Mondial" },
+            { qty: 1, name: "Ring light 1,60 m" }
+        ]
+    },
+    'midia_ferr_pc': {
+        items: [
+            { qty: 4, name: "Notebooks Intel Celeron N4020 4GB de RAM 128GB SSD, Intel UHD Graphics 600 1366x768px Windows 11" }
+        ]
+    },
+
+    // --- FERRAMENTAS INFANTIL ---
+    'infantil_ferr_18': {
+        items: [
+            { qty: 4, name: "Caixas organizadoras infantil (AxLxP): 8cm x 23cm x 27cm" },
+            { qty: 1, name: "Caixa para eletrônicos do infantil (AxLxP): 20cm x 46cm x 26cm" },
+            { qty: 2, name: "Caixas de exploração tato infantil (AxLxP): 22cm x 42cm x 23cm" },
+            { qty: 2, name: "Caixas de exploração projeção infantil (AxLxP): 22cm x 42cm x 23cm" },
+            { qty: 4, name: "Caixas gaveta infantil (AxLxP): 10cm x 42cm x 23cm" },
+            { qty: 2, name: "Caixas recicláveis infantil (AxLxP): 26cm x42cm x 46cm" },
+            { qty: 1, name: "Kit adesivos caixas" },
+            { qty: 1, name: "Carregadores dos eletrônicos infantil HUB USB MD9 7 Portas" },
+            { qty: 7, name: "Cabos de carregamento portátil micro usb de 20cm" },
+            { qty: 1, name: "Tablet 3G 2GB preto" },
+            { qty: 1, name: "Capinha de tablet" },
+            { qty: 1, name: "Kit carimbo de formas geométricas (10 formas)" },
+            { qty: 1, name: "Kit Eletrônicos infantil (18 módulos: luz, movimento e som)" },
+            { qty: 1, name: "Lupa" },
+            { qty: 1, name: "Kit carimbo infantil (5 unidades)" },
+            { qty: 2, name: "Almofadas de carimbo sem tinta" },
+            { qty: 5, name: "Alicates furador de papel" },
+            { qty: 3, name: "Kits de estecas para biscuit (8 unidades)" },
+            { qty: 3, name: "Tesoura vai e vem" },
+            { qty: 3, name: "Kit normógrafo" },
+            { qty: 1, name: "Kit tesouras com cortes diferentes (6 unidades)" },
+            { qty: 6, name: "Reguas Geometricas" }
+        ]
+    },
+    'infantil_ferr_up_6': {
+        items: [
+            { qty: 1, name: "upgrade Eletrônico infantil (6 módulos: luz, movimento e som)" }
+        ]
+    }
+};
+
+export const BRAZIL_STATES = [
+    { name: "Acre", uf: "AC", region: "norte" },
+    { name: "Alagoas", uf: "AL", region: "nordeste" },
+    { name: "Amapá", uf: "AP", region: "norte" },
+    { name: "Amazonas", uf: "AM", region: "norte" },
+    { name: "Bahia", uf: "BA", region: "nordeste" },
+    { name: "Ceará", uf: "CE", region: "nordeste" },
+    { name: "Distrito Federal", uf: "DF", region: "centro_oeste" },
+    { name: "Espírito Santo", uf: "ES", region: "sudeste" },
+    { name: "Goiás", uf: "GO", region: "centro_oeste" },
+    { name: "Maranhão", uf: "MA", region: "nordeste" },
+    { name: "Mato Grosso", uf: "MT", region: "centro_oeste" },
+    { name: "Mato Grosso do Sul", uf: "MS", region: "centro_oeste" },
+    { name: "Minas Gerais", uf: "MG", region: "sudeste" },
+    { name: "Pará", uf: "PA", region: "norte" },
+    { name: "Paraíba", uf: "PB", region: "nordeste" },
+    { name: "Paraná", uf: "PR", region: "sul" },
+    { name: "Pernambuco", uf: "PE", region: "nordeste" },
+    { name: "Piauí", uf: "PI", region: "nordeste" },
+    { name: "Rio de Janeiro", uf: "RJ", region: "sudeste" },
+    { name: "Rio Grande do Norte", uf: "RN", region: "nordeste" },
+    { name: "Rio Grande do Sul", uf: "RS", region: "sul" },
+    { name: "Rondônia", uf: "RO", region: "norte" },
+    { name: "Roraima", uf: "RR", region: "norte" },
+    { name: "Santa Catarina", uf: "SC", region: "sul" },
+    { name: "São Paulo", uf: "SP", region: "ate_700" }, 
+    { name: "Sergipe", uf: "SE", region: "nordeste" },
+    { name: "Tocantins", uf: "TO", region: "norte" }
+];

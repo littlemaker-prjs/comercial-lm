@@ -55,6 +55,17 @@ export interface SystemSettings {
   variables: GlobalVariables;
 }
 
+// Technical Description Types
+export interface TechItem {
+  name: string;
+  qty: number;
+}
+
+export interface TechDetail {
+  items: TechItem[];
+  identityItems?: TechItem[]; // New field for separated Visual Identity items
+}
+
 // Global App State
 export interface AppState {
   client: ClientInfo;

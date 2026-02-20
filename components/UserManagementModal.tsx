@@ -2,7 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { db } from '../firebase';
 import { SUPER_ADMINS } from '../constants';
-import { X, UserPlus, Shield, ShieldAlert, Loader2, Check, User } from 'lucide-react';
+import { X, UserPlus, Shield, ShieldAlert, Loader2, Check, User, Trash2 } from 'lucide-react';
 
 interface UserData {
   id?: string; // Firestore ID usually same as email in this logic
@@ -106,6 +106,19 @@ export const UserManagementModal: React.FC<UserManagementModalProps> = ({ isOpen
     }
   };
 
+  const handleDeleteUser = async (user: UserData) => {
+      if (SUPER_ADMINS.includes(user.email)) return;
+      if (!confirm(`Tem certeza que deseja excluir o usuário ${user.email}?`)) return;
+
+      try {
+          await db.collection('users').doc(user.email).delete();
+          setUsers(prev => prev.filter(u => u.email !== user.email));
+      } catch (error) {
+          console.error("Error deleting user:", error);
+          alert('Erro ao excluir usuário.');
+      }
+  };
+
   if (!isOpen) return null;
 
   return (
@@ -192,19 +205,30 @@ export const UserManagementModal: React.FC<UserManagementModalProps> = ({ isOpen
                                             </span>
                                         </td>
                                         <td className="px-5 py-3 text-right">
-                                            <button 
-                                                onClick={() => toggleRole(user)}
-                                                disabled={isSuper}
-                                                className={`text-xs font-bold px-3 py-1.5 rounded transition-colors ${
-                                                    isSuper 
-                                                        ? 'text-slate-300 cursor-not-allowed' 
-                                                        : isMaster 
-                                                            ? 'bg-slate-100 text-slate-600 hover:bg-slate-200' 
-                                                            : 'bg-purple-50 text-purple-700 hover:bg-purple-100'
-                                                }`}
-                                            >
-                                                {isSuper ? 'Imutável' : isMaster ? 'Tornar Consultor' : 'Tornar Master'}
-                                            </button>
+                                            <div className="flex justify-end gap-2">
+                                                <button 
+                                                    onClick={() => toggleRole(user)}
+                                                    disabled={isSuper}
+                                                    className={`text-xs font-bold px-3 py-1.5 rounded transition-colors ${
+                                                        isSuper 
+                                                            ? 'text-slate-300 cursor-not-allowed' 
+                                                            : isMaster 
+                                                                ? 'bg-slate-100 text-slate-600 hover:bg-slate-200' 
+                                                                : 'bg-purple-50 text-purple-700 hover:bg-purple-100'
+                                                    }`}
+                                                >
+                                                    {isSuper ? 'Imutável' : isMaster ? 'Tornar Consultor' : 'Tornar Master'}
+                                                </button>
+                                                {!isSuper && (
+                                                    <button 
+                                                        onClick={() => handleDeleteUser(user)}
+                                                        className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors"
+                                                        title="Excluir Usuário"
+                                                    >
+                                                        <Trash2 className="w-4 h-4" />
+                                                    </button>
+                                                )}
+                                            </div>
                                         </td>
                                     </tr>
                                 );

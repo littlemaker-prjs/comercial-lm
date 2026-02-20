@@ -1,6 +1,6 @@
 
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import { db } from '../firebase';
+import { db, auth } from '../firebase';
 import { InfraItem, Region, GlobalVariables, SystemSettings } from '../types';
 import { INFRA_CATALOG, REGIONS } from '../constants';
 
@@ -28,26 +28,35 @@ export const SettingsProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const fetchSettings = async () => {
-      try {
-        const doc = await db.collection('config').doc('general').get();
-        if (doc.exists) {
-          const data = doc.data() as Partial<SystemSettings>;
-          setSettings({
-            infraCatalog: data.infraCatalog || INFRA_CATALOG,
-            regions: data.regions || REGIONS,
-            variables: { ...DEFAULT_VARIABLES, ...data.variables }
-          });
-        }
-      } catch (error) {
-        console.error("Error fetching settings, using defaults:", error);
-      } finally {
+    // Only fetch settings if the user is authenticated to avoid permission errors
+    const unsubscribe = auth.onAuthStateChanged((user) => {
+      if (user) {
+        fetchSettings();
+      } else {
+        // If not logged in, we stop loading and use defaults
         setLoading(false);
       }
-    };
-
-    fetchSettings();
+    });
+    return () => unsubscribe();
   }, []);
+
+  const fetchSettings = async () => {
+    try {
+      const doc = await db.collection('config').doc('general').get();
+      if (doc.exists) {
+        const data = doc.data() as Partial<SystemSettings>;
+        setSettings({
+          infraCatalog: data.infraCatalog || INFRA_CATALOG,
+          regions: data.regions || REGIONS,
+          variables: { ...DEFAULT_VARIABLES, ...data.variables }
+        });
+      }
+    } catch (error) {
+      console.error("Error fetching settings, using defaults:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const updateSettings = async (newSettings: Partial<SystemSettings>) => {
     try {
