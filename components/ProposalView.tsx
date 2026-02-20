@@ -1,8 +1,9 @@
 
 import React, { useState } from 'react';
 import { AppState, CategoryType } from '../types';
-import { INFRA_CATALOG, REGIONS } from '../constants';
 import { Download, CheckSquare, Edit3 } from 'lucide-react';
+import { useSettings } from '../contexts/SettingsContext';
+import { PROPOSAL_TEXTS } from '../constants';
 
 // Declare html2pdf for TypeScript
 declare var html2pdf: any;
@@ -13,19 +14,18 @@ interface ProposalViewProps {
   onSave?: () => void;
   isSaving?: boolean;
   user?: any;
+  isMaster: boolean; // Received from App
 }
 
-const MASTER_EMAIL = 'diego.thuler@littlemaker.com.br';
-
-export const ProposalView: React.FC<ProposalViewProps> = ({ appState, setAppState, onSave, isSaving, user }) => {
+export const ProposalView: React.FC<ProposalViewProps> = ({ appState, setAppState, onSave, isSaving, user, isMaster }) => {
+  const { settings } = useSettings(); // Use Global Settings
   const { selectedInfraIds, regionId, commercial } = appState;
-  const isMaster = user?.email?.toLowerCase() === MASTER_EMAIL.toLowerCase();
   
   // Local state for field editing
   const [editingField, setEditingField] = useState<string | null>(null);
   
   // --- HELPERS ---
-  const selectedItems = INFRA_CATALOG.filter(i => selectedInfraIds.includes(i.id));
+  const selectedItems = settings.infraCatalog.filter(i => selectedInfraIds.includes(i.id));
   const hasInfraItems = selectedItems.length > 0;
 
   // --- CONFIGURATION HANDLERS ---
@@ -142,7 +142,7 @@ export const ProposalView: React.FC<ProposalViewProps> = ({ appState, setAppStat
   const baseContractValue3Years = basePricePerStudentYear * commercial.totalStudents * 3;
   
   // 2. Infra Base Calculations
-  const currentRegion = REGIONS.find(r => r.id === regionId) || REGIONS[0];
+  const currentRegion = settings.regions.find(r => r.id === regionId) || settings.regions[0];
   const infraSum = selectedItems.reduce((sum, i) => sum + i.price, 0);
   
   let freightCost = 0;
@@ -159,17 +159,15 @@ export const ProposalView: React.FC<ProposalViewProps> = ({ appState, setAppStat
     : totalInfraCalculated;
 
   // 3. Discount & Rate Logic
-  // FIXED: If Master manually set the price, do NOT apply the 0.83 factor for Marketplace.
-  // The manual price is treated as the Final Applied Rate.
   let appliedRatePerStudentYear = 0;
 
   if (commercial.customValues?.materialPricePerYear !== undefined) {
       // Master Override Active: Value is absolute
       appliedRatePerStudentYear = commercial.customValues.materialPricePerYear;
   } else {
-      // Standard Calculation
+      // Standard Calculation - USE SETTINGS MARGIN
       appliedRatePerStudentYear = commercial.useMarketplace 
-        ? basePricePerStudentYearTiered / 0.83 
+        ? basePricePerStudentYearTiered / settings.variables.marketplaceMargin 
         : basePricePerStudentYearTiered;
   }
 
@@ -178,15 +176,11 @@ export const ProposalView: React.FC<ProposalViewProps> = ({ appState, setAppStat
   let isCalculatedMaterialBonus = false;
   
   if (commercial.contractDuration === 3) {
-      // Logic relies on the "Virtual" 3-year contract value based on the APPLIED rate
-      // However, usually bonus is calculated on the BASE. 
-      // Retaining original logic: Bonus is based on `baseContractValue3Years` (which uses the current base price).
-      
       const referenceContractValue = appliedRatePerStudentYear * commercial.totalStudents * 3;
 
       if (commercial.useMarketplace && commercial.applyInfraBonus && hasInfraItems) {
-          // Scenario: Infra Bonus (15% of TOTAL CONTRACT)
-          const calculatedInfraBonus = referenceContractValue * 0.15;
+          // Scenario: Infra Bonus - USE SETTINGS VARIABLE
+          const calculatedInfraBonus = referenceContractValue * settings.variables.infraBonus;
           
           if (calculatedInfraBonus > totalInfraGross) {
               infraDiscountAmount = totalInfraGross;
@@ -197,10 +191,10 @@ export const ProposalView: React.FC<ProposalViewProps> = ({ appState, setAppStat
               materialDiscountAmount = 0;
           }
       } else {
-          // Scenario: Standard Material Discount (25%)
+          // Scenario: Standard Material Discount - USE SETTINGS VARIABLE
           const effectiveApplyInfra = commercial.applyInfraBonus && hasInfraItems && commercial.useMarketplace;
           if (!effectiveApplyInfra) {
-              materialDiscountAmount = referenceContractValue * 0.25;
+              materialDiscountAmount = referenceContractValue * settings.variables.materialBonus;
               isCalculatedMaterialBonus = true;
           }
       }
@@ -291,60 +285,95 @@ export const ProposalView: React.FC<ProposalViewProps> = ({ appState, setAppStat
   const regionSymbol = showRegionNote ? getNextSymbol() : '';
 
   // --- TEXT RENDERERS ---
+  const replacePlaceholders = (text: string, num: number, numf: number) => {
+    return text.replace('{{num}}', num.toString()).replace('{{numf}}', numf.toString());
+  };
+
+  // --- RENDER FUNCTIONS WITH LOGIC ---
   const renderCarrinhoText = () => {
     const caps = calculateCapacity('infantil');
+    const t = PROPOSAL_TEXTS.infantil_carrinho;
     return (
         <div className="mb-6">
-            <h3 className="font-bold text-lg text-slate-800 mb-1 border-b border-slate-200 pb-1">Carrinho Educação Infantil</h3>
-            <p className="mb-2 text-slate-600 text-sm italic">Tudo que a EI precisa com flexibilidade total</p>
+            <h3 className="font-bold text-lg text-slate-800 mb-1 border-b border-slate-200 pb-1">{t.title}</h3>
+            <p className="mb-2 text-slate-600 text-sm italic">{t.subtitle}</p>
             <ul className="list-disc pl-5 space-y-1 text-slate-700 text-sm">
-                <li>Caixas de Exploração Exclusiva</li>
-                <li>Eletrônicos Infantil Exclusiva</li>
-                <li>Ferramentas Diversas para turmas de até <strong>{caps.numf} alunos</strong></li>
+                {t.items.map((item, idx) => (
+                    <li key={idx}>{replacePlaceholders(item, caps.num, caps.numf)}</li>
+                ))}
             </ul>
         </div>
     );
   };
+
   const renderInfantilOficinaText = () => {
       const caps = calculateCapacity('infantil');
-      return (
-        <div className="mb-6">
-            <h3 className="font-bold text-lg text-slate-800 mb-1 border-b border-slate-200 pb-1">Oficina Kids - {caps.num} alunos</h3>
-            <p className="mb-2 text-slate-600 text-sm italic">Ambientação de oficina temática para educação infantil</p>
-            <ul className="list-disc pl-5 space-y-1 text-slate-700 text-sm">
-                <li>Conjunto de ferramentas Kids completa</li>
-                <li>Bancadas e cadeiras ergonômicas, Armários organizadores baixos, Tapete de atividades</li>
-                <li>Adequada para turmas de até <strong>{caps.numf} alunos</strong></li>
-            </ul>
-        </div>
-      );
-  }
-  const renderMakerText = () => {
-      const caps = calculateCapacity('maker');
-      const isMinima = selectedInfraIds.includes('maker_minima');
-      const title = isMinima ? "Oficina Maker - Ambientação Básica" : `Oficina Maker Completa - ${caps.num} alunos`;
+      const t = PROPOSAL_TEXTS.infantil_oficina;
+      const title = replacePlaceholders(t.title, caps.num, caps.numf);
       return (
         <div className="mb-6">
             <h3 className="font-bold text-lg text-slate-800 mb-1 border-b border-slate-200 pb-1">{title}</h3>
-            <p className="mb-2 text-slate-600 text-sm italic">Ambientação de oficina temática com ferramentas completas</p>
+            <p className="mb-2 text-slate-600 text-sm italic">{t.subtitle}</p>
             <ul className="list-disc pl-5 space-y-1 text-slate-700 text-sm">
-                <li>Conjunto de ferramentas Maker completa (Impressora 3D, Laser, etc)</li>
-                <li>Adequada para turmas de até <strong>{caps.numf} alunos</strong></li>
-                <li>Requer 4 laptops/chromebook (não inclusos)</li>
+                 {t.items.map((item, idx) => (
+                    <li key={idx}>{replacePlaceholders(item, caps.num, caps.numf)}</li>
+                ))}
             </ul>
         </div>
       );
   }
-  const renderMidiaText = () => {
-      const caps = calculateCapacity('midia');
+
+  const renderMakerText = () => {
+      const caps = calculateCapacity('maker');
+      const isMinima = selectedInfraIds.includes('maker_minima');
+      const hasReduzida = selectedInfraIds.includes('maker_ferr_red_18');
+      const hasPadrao = selectedInfraIds.includes('maker_ferr_padrao');
+      const hasDigitais = selectedInfraIds.includes('maker_ferr_digitais');
+      const hasPC = selectedInfraIds.includes('maker_ferr_pc');
+
+      let t = PROPOSAL_TEXTS.maker_padrao;
+
+      // Logic to determine variant
+      if (isMinima) {
+          if (hasReduzida) t = PROPOSAL_TEXTS.maker_minima_reduzida;
+          else if (hasPadrao) t = PROPOSAL_TEXTS.maker_minima_padrao;
+          else t = PROPOSAL_TEXTS.maker_minima_solo;
+      } else {
+          if (hasPC && hasDigitais) t = PROPOSAL_TEXTS.maker_completa_pc;
+          else if (hasDigitais) t = PROPOSAL_TEXTS.maker_completa;
+          else t = PROPOSAL_TEXTS.maker_padrao;
+      }
+      
+      const title = replacePlaceholders(t.title, caps.num, caps.numf);
+
       return (
         <div className="mb-6">
-            <h3 className="font-bold text-lg text-slate-800 mb-1 border-b border-slate-200 pb-1">Sala de Mídia Completa - {caps.num} alunos</h3>
-            <p className="mb-2 text-slate-600 text-sm italic">Ambientação de sala temática completa</p>
+            <h3 className="font-bold text-lg text-slate-800 mb-1 border-b border-slate-200 pb-1">{title}</h3>
+            <p className="mb-2 text-slate-600 text-sm italic">{t.subtitle}</p>
             <ul className="list-disc pl-5 space-y-1 text-slate-700 text-sm">
-                <li>Conjunto de ferramentas Mídia completa (Câmeras, Luz, Audio)</li>
-                <li>Adequada para turmas de até <strong>{caps.numf} alunos</strong></li>
-                <li>Requer 4 laptops/chromebook (não inclusos)</li>
+                {t.items.map((item, idx) => (
+                    <li key={idx}>{replacePlaceholders(item, caps.num, caps.numf)}</li>
+                ))}
+            </ul>
+        </div>
+      );
+  }
+
+  const renderMidiaText = () => {
+      const caps = calculateCapacity('midia');
+      const hasPC = selectedInfraIds.includes('midia_ferr_pc');
+      
+      const t = hasPC ? PROPOSAL_TEXTS.midia_com_computadores : PROPOSAL_TEXTS.midia_padrao;
+      const title = replacePlaceholders(t.title, caps.num, caps.numf);
+
+      return (
+        <div className="mb-6">
+            <h3 className="font-bold text-lg text-slate-800 mb-1 border-b border-slate-200 pb-1">{title}</h3>
+            <p className="mb-2 text-slate-600 text-sm italic">{t.subtitle}</p>
+            <ul className="list-disc pl-5 space-y-1 text-slate-700 text-sm">
+                 {t.items.map((item, idx) => (
+                    <li key={idx}>{replacePlaceholders(item, caps.num, caps.numf)}</li>
+                ))}
             </ul>
         </div>
       );
@@ -352,7 +381,7 @@ export const ProposalView: React.FC<ProposalViewProps> = ({ appState, setAppStat
 
   const hasCarrinho = selectedInfraIds.includes('infantil_carrinho');
   const hasInfantilOficina = selectedItems.some(i => i.category === 'infantil' && i.type === 'ambientacao' && i.id !== 'infantil_carrinho');
-  const hasMaker = selectedItems.some(i => i.category === 'maker' && i.type === 'ambientacao');
+  const hasMaker = selectedItems.some(i => i.category === 'maker' && (i.type === 'ambientacao' || i.id === 'maker_minima'));
   const hasMidia = selectedItems.some(i => i.category === 'midia' && i.type === 'ambientacao');
 
   const CustomCheckbox = ({ checked, label, onChange }: { checked: boolean; label: string; onChange: () => void }) => (

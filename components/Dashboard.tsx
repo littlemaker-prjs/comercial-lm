@@ -1,9 +1,11 @@
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { db } from '../firebase';
 import { AppState } from '../types';
-import { Plus, Search, FileText, Calendar, Trash2, Loader2, LogOut, GraduationCap, Copy, LayoutGrid, List, AlertTriangle, ShieldAlert, Clock } from 'lucide-react';
-import { INFRA_CATALOG, REGIONS } from '../constants';
+import { Plus, Search, FileText, Calendar, Trash2, Loader2, LogOut, GraduationCap, Copy, LayoutGrid, List, AlertTriangle, ShieldAlert, Clock, ChevronDown, Settings, User, DollarSign, Truck, Percent } from 'lucide-react';
+import { UserManagementModal } from './UserManagementModal';
+import { SettingsModal } from './SettingsModal';
+import { useSettings } from '../contexts/SettingsContext';
 
 interface SavedProposal {
   id: string;
@@ -20,11 +22,11 @@ interface DashboardProps {
   onLogout: () => void;
   user: any;
   isOffline: boolean;
+  isMaster: boolean; // Received from App
 }
 
-const MASTER_EMAIL = 'diego.thuler@littlemaker.com.br';
-
-export const Dashboard: React.FC<DashboardProps> = ({ onNewProposal, onLoadProposal, onLogout, user, isOffline }) => {
+export const Dashboard: React.FC<DashboardProps> = ({ onNewProposal, onLoadProposal, onLogout, user, isOffline, isMaster }) => {
+  const { settings } = useSettings(); // Use Global Settings
   const [proposals, setProposals] = useState<SavedProposal[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
@@ -32,6 +34,13 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNewProposal, onLoadPropo
   const [fetchError, setFetchError] = useState<string | null>(null);
   const [permissionError, setPermissionError] = useState(false);
   
+  // Menu State
+  const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const [isUserModalOpen, setIsUserModalOpen] = useState(false);
+  const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
+  const [settingsTab, setSettingsTab] = useState<'infra' | 'freight' | 'config'>('infra');
+  const menuRef = useRef<HTMLDivElement>(null);
+
   const [modalConfig, setModalConfig] = useState<{
       isOpen: boolean;
       title: string;
@@ -41,11 +50,25 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNewProposal, onLoadPropo
       onConfirm: () => void;
   } | null>(null);
 
-  const isMaster = user?.email?.toLowerCase() === MASTER_EMAIL.toLowerCase();
-
   useEffect(() => {
     fetchProposals();
   }, [user, isOffline]);
+
+  useEffect(() => {
+      const handleClickOutside = (event: MouseEvent) => {
+          if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
+              setIsMenuOpen(false);
+          }
+      };
+      document.addEventListener('mousedown', handleClickOutside);
+      return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  const openSettings = (tab: 'infra' | 'freight' | 'config') => {
+      setSettingsTab(tab);
+      setIsSettingsModalOpen(true);
+      setIsMenuOpen(false);
+  };
 
   const fetchProposals = async () => {
     setLoading(true);
@@ -114,12 +137,8 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNewProposal, onLoadPropo
   const handleCopy = (e: React.MouseEvent, proposal: SavedProposal) => {
       e.stopPropagation();
       try {
-          // Deep Copy
           const newData = JSON.parse(JSON.stringify(proposal.data));
           newData.client.schoolName += ' (Cópia)';
-          
-          // Reset owner info in the cloned data if it exists there (though main storage is top-level)
-          // Ideally AppState doesn't hold userId, but we do this to be safe in case it passes through
           onLoadProposal(null, newData);
       } catch (err) {
           console.error("Copy Error:", err);
@@ -131,7 +150,8 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNewProposal, onLoadPropo
       if (!proposalData) return { hasMidia: false, hasMaker: false, hasInfantil: false, totalMaterialYear: 0, totalInfra: 0, segments: [], totalBonus: 0, bonusType: '' };
       
       const selectedIds = proposalData.selectedInfraIds || [];
-      const selectedItems = INFRA_CATALOG.filter(i => selectedIds.includes(i.id));
+      // USE SETTINGS CATALOG INSTEAD OF CONSTANT
+      const selectedItems = settings.infraCatalog.filter(i => selectedIds.includes(i.id));
       const hasMidia = selectedItems.some(i => i.category === 'midia');
       const hasMaker = selectedItems.some(i => i.category === 'maker');
       const hasInfantil = selectedItems.some(i => i.category === 'infantil');
@@ -150,13 +170,13 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNewProposal, onLoadPropo
 
       const basePriceTiered = getBaseMaterialPrice(students);
       
-      // Determine Applied Price (matching ProposalView logic)
       let appliedPrice = 0;
       if (commercial.customValues?.materialPricePerYear !== undefined) {
           appliedPrice = commercial.customValues.materialPricePerYear;
       } else {
+          // USE SETTINGS VARIABLE
           appliedPrice = commercial.useMarketplace 
-            ? basePriceTiered / 0.83 
+            ? basePriceTiered / settings.variables.marketplaceMargin 
             : basePriceTiered;
       }
 
@@ -164,7 +184,8 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNewProposal, onLoadPropo
       
       // Infra Calc
       const regionId = proposalData.regionId || 'ate_700';
-      const region = REGIONS.find(r => r.id === regionId) || REGIONS[0];
+      // USE SETTINGS REGIONS
+      const region = settings.regions.find(r => r.id === regionId) || settings.regions[0];
       const infraSum = selectedItems.reduce((sum, i) => sum + i.price, 0);
       let freight = 0;
       if (selectedItems.length > 0) {
@@ -184,8 +205,8 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNewProposal, onLoadPropo
         const baseContractValue3Years = totalMaterialYear * 3;
         
         if (commercial.useMarketplace && commercial.applyInfraBonus && selectedItems.length > 0) {
-            // Infra Bonus (calculated on 3-year total)
-            const fullBonus = baseContractValue3Years * 0.15;
+            // Infra Bonus - USE SETTINGS VARIABLE
+            const fullBonus = baseContractValue3Years * settings.variables.infraBonus;
             if (fullBonus > totalInfraGross) {
                 calcInfraBonus = totalInfraGross;
                 calcMaterialBonus = fullBonus - totalInfraGross;
@@ -193,12 +214,11 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNewProposal, onLoadPropo
                 calcInfraBonus = fullBonus;
             }
         } else if (!commercial.applyInfraBonus || !commercial.useMarketplace) {
-            // Material Bonus
-            calcMaterialBonus = baseContractValue3Years * 0.25;
+            // Material Bonus - USE SETTINGS VARIABLE
+            calcMaterialBonus = baseContractValue3Years * settings.variables.materialBonus;
         }
       }
 
-      // Apply Overrides (if they exist, they replace the calculated values)
       const finalMaterialBonus = commercial.customValues?.materialBonus !== undefined
           ? commercial.customValues.materialBonus
           : calcMaterialBonus;
@@ -232,7 +252,22 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNewProposal, onLoadPropo
 
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col relative">
-      {/* Modal ... */}
+      
+      {/* Management Modal */}
+      <UserManagementModal 
+        isOpen={isUserModalOpen} 
+        onClose={() => setIsUserModalOpen(false)} 
+        currentUserEmail={user.email}
+      />
+
+      {/* Settings Modal */}
+      <SettingsModal 
+        isOpen={isSettingsModalOpen}
+        onClose={() => setIsSettingsModalOpen(false)}
+        defaultTab={settingsTab}
+      />
+
+      {/* Confirmation Modal */}
       {modalConfig && modalConfig.isOpen && (
           <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in" onClick={() => setModalConfig(null)}>
               <div className="bg-white rounded-xl shadow-2xl max-w-sm w-full overflow-hidden transform transition-all scale-100" onClick={e => e.stopPropagation()}>
@@ -258,30 +293,88 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNewProposal, onLoadPropo
       )}
 
       {/* Header */}
-      <header className="text-white p-4 shadow-md bg-[#71477A]">
+      <header className="text-white p-4 shadow-md bg-[#71477A] relative z-20">
         <div className="max-w-7xl mx-auto flex justify-between items-center">
           <div className="flex items-center gap-4">
              <img src="https://littlemaker.com.br/logo_lm-2/" alt="Little Maker" className="h-10 w-auto" />
              <h1 className="text-xl font-bold border-l border-white/30 pl-4 hidden md:block">Painel de Propostas</h1>
           </div>
+          
           <div className="flex items-center gap-4">
-            <div className="hidden md:flex flex-col items-end mr-2 text-right">
-                <span className="text-sm font-medium">{user.email}</span>
-                <span className="text-[10px] opacity-70 flex items-center gap-1">
-                    {isMaster ? 'ADMIN MASTER' : 'CONSULTOR'} • {isOffline ? 'OFFLINE' : 'ONLINE'}
-                </span>
+            
+            {/* User Profile Dropdown */}
+            <div className="relative" ref={menuRef}>
+                <button 
+                    onClick={() => setIsMenuOpen(!isMenuOpen)}
+                    className="flex items-center gap-3 hover:bg-white/10 p-2 rounded-lg transition-colors text-right"
+                >
+                    <div className="hidden md:flex flex-col items-end">
+                        <span className="text-sm font-medium">{user.email}</span>
+                        <span className="text-[10px] opacity-70 flex items-center gap-1 uppercase">
+                            {isMaster ? 'ADMIN MASTER' : 'CONSULTOR'} • {isOffline ? 'OFFLINE' : 'ONLINE'}
+                        </span>
+                    </div>
+                    <ChevronDown className={`w-4 h-4 transition-transform ${isMenuOpen ? 'rotate-180' : ''}`} />
+                </button>
+
+                {/* Dropdown Menu */}
+                {isMenuOpen && (
+                    <div className="absolute right-0 top-full mt-2 w-64 bg-white rounded-xl shadow-xl border border-slate-200 overflow-hidden py-1 animate-fade-in origin-top-right text-slate-700">
+                        {isMaster && (
+                            <>
+                                <button 
+                                    onClick={() => { setIsUserModalOpen(true); setIsMenuOpen(false); }}
+                                    className="w-full text-left px-4 py-3 hover:bg-slate-50 flex items-center gap-3 transition-colors border-b border-slate-100"
+                                >
+                                    <div className="bg-purple-100 p-1.5 rounded-lg text-purple-700">
+                                        <Settings className="w-4 h-4" />
+                                    </div>
+                                    <div>
+                                        <div className="font-bold text-sm">Configurar Usuários</div>
+                                        <div className="text-[10px] text-slate-500">Gerenciar Master/Consultor</div>
+                                    </div>
+                                </button>
+                                
+                                <button 
+                                    onClick={() => openSettings('infra')}
+                                    className="w-full text-left px-4 py-3 hover:bg-slate-50 flex items-center gap-3 transition-colors border-b border-slate-100"
+                                >
+                                    <div className="bg-green-100 p-1.5 rounded-lg text-green-700">
+                                        <DollarSign className="w-4 h-4" />
+                                    </div>
+                                    <div>
+                                        <div className="font-bold text-sm">Configurar Precificação</div>
+                                        <div className="text-[10px] text-slate-500">Gerenciar Preços, Frete e Margens</div>
+                                    </div>
+                                </button>
+                            </>
+                        )}
+                         
+                        <div className="px-4 py-3 md:hidden border-b border-slate-100">
+                             <div className="text-xs font-bold text-slate-900 truncate">{user.email}</div>
+                             <div className="text-[10px] text-slate-500 uppercase">{isMaster ? 'Master' : 'Consultor'}</div>
+                        </div>
+
+                        <button 
+                            onClick={onLogout} 
+                            className="w-full text-left px-4 py-3 hover:bg-red-50 text-red-600 flex items-center gap-3 transition-colors"
+                        >
+                            <LogOut className="w-4 h-4" />
+                            <span className="font-medium text-sm">Sair do Sistema</span>
+                        </button>
+                    </div>
+                )}
             </div>
-            <button onClick={onLogout} className="p-2 hover:bg-white/10 rounded-full transition-colors"><LogOut className="w-5 h-5" /></button>
+
           </div>
         </div>
       </header>
 
       <main className="flex-1 max-w-7xl w-full mx-auto p-6 md:p-8">
         
-        {/* Error Block ... */}
+        {/* Error Block */}
         {permissionError && (
             <div className="mb-8 bg-red-50 border border-red-200 rounded-xl p-6 animate-fade-in shadow-sm">
-                {/* ... (Error Content Same as before) ... */}
                 <div className="flex items-start gap-4">
                     <ShieldAlert className="w-8 h-8 text-red-600 shrink-0" />
                     <div className="flex-1">
@@ -393,7 +486,6 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNewProposal, onLoadPropo
                                             <div className="font-bold text-slate-800">{proposal.schoolName || 'Sem nome'}</div>
                                             <div className="flex gap-1 mt-1">{stats.segments.map(s => <SegmentBadge key={s} label={s} />)}</div>
                                         </td>
-                                        {/* Simplificação aqui: Removida a condicional que verificava material > 0 */}
                                         <td className="px-4 py-3 text-center text-slate-900">{proposal.data?.commercial?.totalStudents}</td>
                                         <td className="px-4 py-3 text-right font-medium text-slate-900">{stats.totalInfra.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</td>
                                         <td className="px-4 py-3 text-right text-slate-600">{stats.totalMaterialYear.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</td>

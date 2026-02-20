@@ -7,10 +7,11 @@ import { ProposalView } from './components/ProposalView';
 import { LoginScreen } from './components/LoginScreen';
 import { Dashboard } from './components/Dashboard';
 import { AppState } from './types';
-import { INITIAL_APP_STATE, INFRA_CATALOG, REGIONS } from './constants';
+import { INITIAL_APP_STATE, SUPER_ADMINS } from './constants';
 import { LayoutDashboard, FileText, User, ArrowLeft, Loader2, Save, CheckCircle, AlertCircle, X } from 'lucide-react';
 import { auth, db } from './firebase';
 import firebase from 'firebase/compat/app';
+import { useSettings } from './contexts/SettingsContext';
 
 enum Step {
   START = 'start',
@@ -20,9 +21,13 @@ enum Step {
 }
 
 function App() {
+  const { settings } = useSettings(); // Use Global Settings
   const [firebaseUser, setFirebaseUser] = useState<firebase.User | null>(null);
   const [offlineUser, setOfflineUser] = useState<any | null>(null);
   const [authLoading, setAuthLoading] = useState(true);
+  
+  // Master Role State
+  const [isMaster, setIsMaster] = useState(false);
 
   const activeUser = firebaseUser || offlineUser;
   const isOffline = !!offlineUser && !firebaseUser;
@@ -42,6 +47,49 @@ function App() {
     return () => unsubscribe();
   }, []);
 
+  // Sync User Role and Existence in Firestore
+  useEffect(() => {
+    const checkAndSyncUser = async () => {
+        if (activeUser?.email) {
+            const emailLower = activeUser.email.toLowerCase();
+            const isSuper = SUPER_ADMINS.includes(emailLower);
+            
+            if (isOffline) {
+                setIsMaster(isSuper);
+                return;
+            }
+
+            try {
+                const userRef = db.collection('users').doc(emailLower);
+                const doc = await userRef.get();
+                
+                let role = 'consultant';
+
+                if (!doc.exists) {
+                    await userRef.set({
+                        email: emailLower,
+                        role: 'consultant',
+                        lastLogin: firebase.firestore.FieldValue.serverTimestamp()
+                    });
+                } else {
+                    await userRef.update({
+                        lastLogin: firebase.firestore.FieldValue.serverTimestamp()
+                    });
+                    role = doc.data()?.role || 'consultant';
+                }
+                setIsMaster(isSuper || role === 'master');
+            } catch (err) {
+                console.error("Error syncing user profile:", err);
+                setIsMaster(isSuper);
+            }
+        } else {
+            setIsMaster(false);
+        }
+    };
+
+    checkAndSyncUser();
+  }, [activeUser, isOffline]);
+
   useEffect(() => {
       if (notification) {
           const timer = setTimeout(() => setNotification(null), 3500);
@@ -54,6 +102,7 @@ function App() {
     setFirebaseUser(null);
     setOfflineUser(null);
     setViewMode('dashboard');
+    setIsMaster(false);
   };
 
   const handleOfflineLogin = (email: string) => {
@@ -89,11 +138,8 @@ function App() {
     }
     
     setIsSaving(true);
-    console.log("Saving proposal...", { isOffline, currentProposalId, userEmail: activeUser.email });
     
     try {
-        // Sanitize data to remove undefined values which Firestore hates
-        // This handles cases where optional fields were explicitly set to undefined in state
         const cleanData = JSON.parse(JSON.stringify(appState));
 
         const payload = {
@@ -116,21 +162,16 @@ function App() {
             setCurrentProposalId(localId);
             showNotification('Salvo localmente!', 'success');
         } else {
-            // FIREBASE SAVING
             if (currentProposalId && !currentProposalId.startsWith('local_')) {
-                // Check if user has permission to write to this doc (effectively checks ownership via rules, but logic here helps debugging)
-                console.log("Updating existing doc:", currentProposalId);
                 await db.collection('proposals').doc(currentProposalId).set(payload, { merge: true });
                 showNotification('Proposta atualizada no Firebase!', 'success');
             } else {
-                console.log("Creating new doc for user:", activeUser.email);
                 const docRef = await db.collection('proposals').add(payload);
                 setCurrentProposalId(docRef.id);
                 showNotification('Proposta criada no Firebase!', 'success');
             }
         }
         
-        // Auto-redirect to dashboard after save
         setTimeout(() => {
            setViewMode('dashboard');
         }, 1500);
@@ -199,7 +240,8 @@ function App() {
 
   const calculateSummary = () => {
       const totalStudents = appState.commercial.totalStudents;
-      const selectedItems = INFRA_CATALOG.filter(i => appState.selectedInfraIds.includes(i.id));
+      // USE SETTINGS CATALOG
+      const selectedItems = settings.infraCatalog.filter(i => appState.selectedInfraIds.includes(i.id));
       
       const activeTypes: string[] = [];
       if (selectedItems.some(i => i.category === 'maker')) activeTypes.push("Maker");
@@ -219,7 +261,19 @@ function App() {
 
   if (authLoading) return <div className="h-screen flex items-center justify-center bg-slate-50"><Loader2 className="w-10 h-10 text-[#71477A] animate-spin" /></div>;
   if (!activeUser) return <LoginScreen onOfflineLogin={handleOfflineLogin} />;
-  if (viewMode === 'dashboard') return <Dashboard onNewProposal={startNewProposal} onLoadProposal={loadProposal} onLogout={handleLogout} user={activeUser} isOffline={isOffline} />;
+  
+  if (viewMode === 'dashboard') {
+      return (
+        <Dashboard 
+            onNewProposal={startNewProposal} 
+            onLoadProposal={loadProposal} 
+            onLogout={handleLogout} 
+            user={activeUser} 
+            isOffline={isOffline}
+            isMaster={isMaster}
+        />
+      );
+  }
 
   const isClientConfigured = appState.client.schoolName && appState.client.contactName && appState.client.state && appState.client.state !== '';
   const navItemClass = (step: Step, disabled: boolean) =>
@@ -276,7 +330,7 @@ function App() {
       <main className="flex-1 overflow-hidden relative">
         {currentStep === Step.START && <StartScreen appState={appState} setAppState={setAppState} onNext={handleStartNext} />}
         {currentStep === Step.WORKSHOPS && <WorkshopPanel appState={appState} setAppState={setAppState} onNext={() => setCurrentStep(Step.PROPOSAL)} />}
-        {currentStep === Step.PROPOSAL && <ProposalView appState={appState} setAppState={setAppState} onSave={handleSaveProposal} isSaving={isSaving} user={activeUser} />}
+        {currentStep === Step.PROPOSAL && <ProposalView appState={appState} setAppState={setAppState} onSave={handleSaveProposal} isSaving={isSaving} user={activeUser} isMaster={isMaster} />}
       </main>
     </div>
   );

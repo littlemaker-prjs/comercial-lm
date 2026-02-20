@@ -43,6 +43,18 @@ export interface CommercialConfig {
   };
 }
 
+export interface GlobalVariables {
+  marketplaceMargin: number; // ex: 0.83
+  materialBonus: number;     // ex: 0.25
+  infraBonus: number;        // ex: 0.15
+}
+
+export interface SystemSettings {
+  infraCatalog: InfraItem[];
+  regions: Region[];
+  variables: GlobalVariables;
+}
+
 // Global App State
 export interface AppState {
   client: ClientInfo;

@@ -1,8 +1,9 @@
 
 import React from 'react';
 import { AppState } from '../types';
-import { BRAZIL_STATES, INFRA_CATALOG } from '../constants';
+import { BRAZIL_STATES } from '../constants';
 import { Building2, Calendar, User, ArrowRight, Users, CheckCircle2, FileText, MapPin } from 'lucide-react';
+import { useSettings } from '../contexts/SettingsContext';
 
 interface StartScreenProps {
   appState: AppState;
@@ -18,6 +19,7 @@ const SEGMENT_OPTIONS = [
 ];
 
 export const StartScreen: React.FC<StartScreenProps> = ({ appState, setAppState, onNext }) => {
+  const { settings } = useSettings(); // Use Global Settings for Catalog
   const { client, commercial } = appState;
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
@@ -74,7 +76,7 @@ export const StartScreen: React.FC<StartScreenProps> = ({ appState, setAppState,
         // If Educação Infantil is NOT selected, remove all 'infantil' items
         if (!hasEI) {
             newSelectedInfra = newSelectedInfra.filter(id => {
-                const item = INFRA_CATALOG.find(i => i.id === id);
+                const item = settings.infraCatalog.find(i => i.id === id);
                 return item?.category !== 'infantil';
             });
         }
@@ -82,7 +84,7 @@ export const StartScreen: React.FC<StartScreenProps> = ({ appState, setAppState,
         // If NO Fundamental/Médio segments are selected, remove all 'maker' and 'midia' items
         if (!hasEF_EM) {
             newSelectedInfra = newSelectedInfra.filter(id => {
-                const item = INFRA_CATALOG.find(i => i.id === id);
+                const item = settings.infraCatalog.find(i => i.id === id);
                 return item?.category !== 'maker' && item?.category !== 'midia';
             });
         }

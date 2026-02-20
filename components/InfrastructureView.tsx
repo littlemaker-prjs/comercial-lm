@@ -1,16 +1,19 @@
+
 import React from 'react';
 import { AppState } from '../types';
-import { INFRA_CATALOG } from '../constants';
 import { FileText, ClipboardList, CheckSquare } from 'lucide-react';
+import { useSettings } from '../contexts/SettingsContext';
 
 interface InfrastructureViewProps {
   appState: AppState;
 }
 
 export const InfrastructureView: React.FC<InfrastructureViewProps> = ({ appState }) => {
+  const { settings } = useSettings();
   const { selectedInfraIds } = appState;
   
-  const selectedItems = INFRA_CATALOG.filter(item => selectedInfraIds.includes(item.id));
+  // USE SETTINGS CATALOG
+  const selectedItems = settings.infraCatalog.filter(item => selectedInfraIds.includes(item.id));
 
   if (selectedItems.length === 0) {
     return (

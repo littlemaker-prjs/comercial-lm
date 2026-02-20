@@ -1,8 +1,8 @@
 
 import React from 'react';
 import { AppState, CategoryType, InfraItem } from '../types';
-import { INFRA_CATALOG, REGIONS } from '../constants';
 import { Truck, ArrowRight, AlertCircle } from 'lucide-react';
+import { useSettings } from '../contexts/SettingsContext';
 
 interface WorkshopPanelProps {
   appState: AppState;
@@ -11,13 +11,14 @@ interface WorkshopPanelProps {
 }
 
 export const WorkshopPanel: React.FC<WorkshopPanelProps> = ({ appState, setAppState, onNext }) => {
+  const { settings } = useSettings(); // Use Global Settings
   const { regionId, selectedInfraIds } = appState;
   const segments = appState.client.segments || [];
 
   const toggleItem = (itemId: string, category: CategoryType) => {
     setAppState(prev => {
       const isSelected = prev.selectedInfraIds.includes(itemId);
-      const item = INFRA_CATALOG.find(i => i.id === itemId);
+      const item = settings.infraCatalog.find(i => i.id === itemId);
       
       if (!item) return prev;
 
@@ -29,7 +30,7 @@ export const WorkshopPanel: React.FC<WorkshopPanelProps> = ({ appState, setAppSt
         
         // If removing a BASE/STANDARD item, we must remove its upgrades too
         if (item.isBase) {
-            const relatedUpgrades = INFRA_CATALOG.filter(i => 
+            const relatedUpgrades = settings.infraCatalog.filter(i => 
                 i.category === category && 
                 i.type === item.type && 
                 i.isUpgrade
@@ -42,13 +43,12 @@ export const WorkshopPanel: React.FC<WorkshopPanelProps> = ({ appState, setAppSt
         newSelection.push(itemId);
 
         // --- SPECIFIC BUSINESS LOGIC ---
+        // (Same logic as before, but using ids which are stable)
 
         // 1. Mídia / Ambientação
         if (category === 'midia' && item.type === 'ambientacao') {
              if (item.isUpgrade) {
-                 // Upgrade requires Base
                  if (!newSelection.includes('midia_padrao_24')) newSelection.push('midia_padrao_24');
-                 // Upgrades are mutually exclusive
                  const otherUp = item.id === 'midia_up_12' ? 'midia_up_6' : 'midia_up_12';
                  newSelection = newSelection.filter(id => id !== otherUp);
              }
@@ -57,15 +57,11 @@ export const WorkshopPanel: React.FC<WorkshopPanelProps> = ({ appState, setAppSt
         // 2. Maker / Ambientação
         if (category === 'maker' && item.type === 'ambientacao') {
             if (item.id === 'maker_minima') {
-                // Minima excludes everything else in Maker Ambientação
                 newSelection = newSelection.filter(id => !['maker_padrao_24', 'maker_up_12', 'maker_up_6'].includes(id));
             } else {
-                // Selecting Standard or Upgrades removes Minima
                 newSelection = newSelection.filter(id => id !== 'maker_minima');
-                
                 if (item.isUpgrade) {
                     if (!newSelection.includes('maker_padrao_24')) newSelection.push('maker_padrao_24');
-                    // Upgrades mutually exclusive
                     const otherUp = item.id === 'maker_up_12' ? 'maker_up_6' : 'maker_up_12';
                     newSelection = newSelection.filter(id => id !== otherUp);
                 }
@@ -75,12 +71,9 @@ export const WorkshopPanel: React.FC<WorkshopPanelProps> = ({ appState, setAppSt
         // 3. Maker / Ferramentas
         if (category === 'maker' && item.type === 'ferramentas') {
             if (item.id === 'maker_ferr_red_18') {
-                // Reduzida excludes Standard and Upgrades
                 newSelection = newSelection.filter(id => !['maker_ferr_padrao', 'maker_ferr_digitais', 'maker_ferr_pc'].includes(id));
             } else {
-                // Selecting Standard or Upgrades removes Reduzida
                 newSelection = newSelection.filter(id => id !== 'maker_ferr_red_18');
-                
                 if (item.isUpgrade) {
                      if (!newSelection.includes('maker_ferr_padrao')) newSelection.push('maker_ferr_padrao');
                 }
@@ -97,20 +90,14 @@ export const WorkshopPanel: React.FC<WorkshopPanelProps> = ({ appState, setAppSt
         // 5. Infantil / Ambientação
         if (category === 'infantil' && item.type === 'ambientacao') {
             if (item.id === 'infantil_carrinho') {
-                // Carrinho excludes Padrão and Upgrades
                 newSelection = newSelection.filter(id => !['infantil_padrao_18', 'infantil_up_12', 'infantil_up_6'].includes(id));
             } else {
-                // Selecting Padrão or Upgrades removes Carrinho
                 newSelection = newSelection.filter(id => id !== 'infantil_carrinho');
-
-                // Selecting Padrão/Upgrades auto-selects "Ferramentas 18 alunos"
                 if (!newSelection.includes('infantil_ferr_18')) {
                     newSelection.push('infantil_ferr_18');
                 }
-
                 if (item.isUpgrade) {
                     if (!newSelection.includes('infantil_padrao_18')) newSelection.push('infantil_padrao_18');
-                     // Upgrades mutually exclusive
                     const otherUp = item.id === 'infantil_up_12' ? 'infantil_up_6' : 'infantil_up_12';
                     newSelection = newSelection.filter(id => id !== otherUp);
                 }
@@ -123,34 +110,30 @@ export const WorkshopPanel: React.FC<WorkshopPanelProps> = ({ appState, setAppSt
                 if (!newSelection.includes('infantil_ferr_18')) newSelection.push('infantil_ferr_18');
              }
         }
-
       }
 
       return { ...prev, selectedInfraIds: newSelection };
     });
   };
 
-  // Helper to render a category column
   const renderCategoryColumn = (title: string, category: CategoryType) => {
-    const items = INFRA_CATALOG.filter(i => i.category === category);
+    // USE SETTINGS CATALOG
+    const items = settings.infraCatalog.filter(i => i.category === category);
     const ambientacao = items.filter(i => i.type === 'ambientacao');
     const ferramentas = items.filter(i => i.type === 'ferramentas');
 
     return (
       <div className="flex-1 min-w-[340px] max-w-[420px] flex flex-col bg-white rounded-lg shadow-sm border border-slate-200 overflow-hidden shrink-0">
-        {/* Header - Now Green */}
         <div className="p-3 bg-[#8BBF56] border-b border-green-600">
           <h3 className="font-bold text-sm text-white text-center uppercase tracking-wide">{title}</h3>
         </div>
 
         <div className="p-5 flex-1 flex flex-col gap-6 overflow-y-auto">
-          {/* Ambientação Group */}
           <div>
             <h4 className="font-bold text-slate-900 mb-3 text-sm border-b border-slate-100 pb-1">Ambientação</h4>
             <div className="space-y-3">
               {ambientacao.map(item => {
                 const isSelected = selectedInfraIds.includes(item.id);
-                
                 return (
                   <label key={item.id} className="flex items-start gap-3 cursor-pointer group hover:bg-slate-50 p-2 rounded-lg -ml-2 transition-colors">
                     <div className={`relative flex-shrink-0 flex items-center justify-center w-5 h-5 rounded border transition-colors mt-0.5 ${
@@ -173,7 +156,6 @@ export const WorkshopPanel: React.FC<WorkshopPanelProps> = ({ appState, setAppSt
             </div>
           </div>
 
-          {/* Ferramentas Group */}
           <div>
             <h4 className="font-bold text-slate-900 mb-3 text-sm border-b border-slate-100 pb-1">Ferramentas</h4>
             <div className="space-y-3">
@@ -224,7 +206,8 @@ export const WorkshopPanel: React.FC<WorkshopPanelProps> = ({ appState, setAppSt
                             onChange={(e) => setAppState(prev => ({ ...prev, regionId: e.target.value }))}
                             className="appearance-none bg-[#EBF5E0] text-slate-800 font-medium py-2 pl-4 pr-10 rounded-full border border-[#d4e8c0] focus:outline-none focus:ring-2 focus:ring-[#8BBF56] cursor-pointer min-w-[200px]"
                         >
-                            {REGIONS.map(r => (
+                            {/* USE SETTINGS REGIONS */}
+                            {settings.regions.map(r => (
                                 <option key={r.id} value={r.id}>{r.label}</option>
                             ))}
                         </select>
@@ -249,7 +232,6 @@ export const WorkshopPanel: React.FC<WorkshopPanelProps> = ({ appState, setAppSt
         {/* Scrollable Columns */}
         <div className="flex-1 w-full overflow-x-auto overflow-y-hidden">
             <div className="h-full flex gap-6 p-6 min-w-max">
-                {/* 1. Maker Infantil (Somente se EI) */}
                 {hasEI ? renderCategoryColumn('Maker Infantil', 'infantil') : (
                     <div className="flex-1 min-w-[300px] max-w-[340px] flex items-center justify-center border-2 border-dashed border-slate-200 rounded-lg bg-slate-50/50 text-slate-400 p-8 text-center text-sm">
                         <div className="flex flex-col items-center gap-2">
@@ -258,11 +240,7 @@ export const WorkshopPanel: React.FC<WorkshopPanelProps> = ({ appState, setAppSt
                         </div>
                     </div>
                 )}
-                
-                {/* 2. Maker Fundamental (Somente se EFAI/EFAF/EM) */}
                 {hasEF ? renderCategoryColumn('Maker Fundamental e Médio', 'maker') : null}
-                
-                {/* 3. Mídia (Somente se EFAI/EFAF/EM) */}
                 {hasEF ? renderCategoryColumn('Mídia Fundamental e Médio', 'midia') : (
                      <div className="flex-1 min-w-[300px] max-w-[340px] flex items-center justify-center border-2 border-dashed border-slate-200 rounded-lg bg-slate-50/50 text-slate-400 p-8 text-center text-sm">
                         <div className="flex flex-col items-center gap-2">
@@ -273,7 +251,6 @@ export const WorkshopPanel: React.FC<WorkshopPanelProps> = ({ appState, setAppSt
                 )}
             </div>
         </div>
-        
     </div>
   );
 };

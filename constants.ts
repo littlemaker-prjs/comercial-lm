@@ -1,6 +1,11 @@
 
 import { InfraItem, Region, AppState } from './types';
 
+export const SUPER_ADMINS = [
+  'diego.thuler@littlemaker.com.br',
+  'denise.thuler@littlemaker.com.br'
+];
+
 export const REGIONS: Region[] = [
   { id: 'ate_700', label: 'Até 700Km', priceSimple: 1500, priceAssembly: 4000 },
   { id: 'sudeste', label: 'Sudeste', priceSimple: 1500, priceAssembly: 8500 },
@@ -9,6 +14,109 @@ export const REGIONS: Region[] = [
   { id: 'nordeste', label: 'Nordeste', priceSimple: 4000, priceAssembly: 15500 },
   { id: 'norte', label: 'Norte', priceSimple: 5000, priceAssembly: 21800 },
 ];
+
+// Mapeamento exato dos textos da planilha CSV
+export const PROPOSAL_TEXTS = {
+  // --- INFANTIL ---
+  infantil_carrinho: {
+    title: "Carrinho Educação Infantil",
+    subtitle: "Tudo que a EI precisa com flexibilidade total",
+    items: [
+      "Caixas de Exploração Exclusiva",
+      "Eletrônicos Infantil Exclusiva",
+      "Ferramentas Diversas para turmas de até {{numf}} alunos"
+    ]
+  },
+  infantil_oficina: {
+    title: "Oficina Educação Infantil",
+    subtitle: "Ambientação de oficina temática completa",
+    items: [
+      "Caixas de Exploração Exclusiva",
+      "Conjunto de Eletrônicos Infantil Exclusivo",
+      "Ferramentas Diversas",
+      "Adequada para turmas de até {{numf}} alunos"
+    ]
+  },
+
+  // --- MÍDIA ---
+  midia_padrao: {
+    title: "Sala de Mídia Completa - {{num}} alunos",
+    subtitle: "Ambientação de sala temática completa",
+    items: [
+      "Conjunto de ferramentas Maker completa",
+      "Inclui impressora 3D, cortadora laser, canetas 3D, máquina de costura, kit 60 módulos eletrônicos, expansão microbit (programável) e ferramentas manuais",
+      "Adequada para turmas de até {{num}} alunos",
+      "Requer 4 laptops/chromebook (não inclusos)"
+    ]
+  },
+  midia_com_computadores: {
+    title: "Sala de Mídia Completa com Computadores",
+    subtitle: "Ambientação de sala temática completa",
+    items: [
+      "Conjunto de ferramentas Maker completa",
+      "Inclui impressora 3D, cortadora laser, canetas 3D, máquina de costura, kit 60 módulos eletrônicos, expansão microbit (programável) e ferramentas manuais",
+      "Fornecido com 4 laptops",
+      "Adequada para turmas de até {{num}} alunos"
+    ]
+  },
+
+  // --- MAKER ---
+  maker_padrao: {
+    title: "Oficina Maker Padrão - {{num}} alunos",
+    subtitle: "Ambientação de oficina temática com ferramentas padrão",
+    items: [
+      "Conjunto de ferramentas Maker com amplas possibilidades",
+      "Inclui impressora 3D, canetas 3D, máquina de costura, kit 60 módulos eletrônicos, ferramentas manuais e muito mais",
+      "Adequada para turmas de até {{num}} alunos"
+    ]
+  },
+  maker_completa: {
+    title: "Oficina Maker Completa - {{num}} alunos",
+    subtitle: "Ambientação de oficina temática com ferramentas completas",
+    items: [
+      "Conjunto de ferramentas Maker completa",
+      "Inclui impressora 3D, cortadora laser, canetas 3D, máquina de costura, kit 60 módulos eletrônicos, expansão microbit (programável), ferramentas manuais e muito mais",
+      "Adequada para turmas de até {{num}} alunos",
+      "Requer 4 laptops/chromebook (não inclusos)"
+    ]
+  },
+  maker_completa_pc: {
+    title: "Oficina Maker Completa com Computadores - {{num}} alunos",
+    subtitle: "Ambientação de oficina temática com ferramentas completas",
+    items: [
+      "Conjunto de ferramentas Maker completa",
+      "Inclui impressora 3D, cortadora laser, canetas 3D, máquina de costura, kit 60 módulos eletrônicos, expansão microbit (programável), ferramentas manuais e muito mais",
+      "Fornecido com 4 laptops",
+      "Adequada para turmas de até {{num}} alunos"
+    ]
+  },
+
+  // --- MAKER (VARIANTE AMBIENTAÇÃO MÍNIMA) ---
+  maker_minima_reduzida: {
+    title: "Amb. Mínima com Ferramentas Reduzidas EFAI",
+    subtitle: "Ideal para iniciar com turmas reduzidas",
+    items: [
+      "Incluem containers, organizadores de materiais e adesivos de sinalização",
+      "Conjunto de ferramentas diversas de complexidade adequada para Anos Iniciais",
+      "Adequada para turmas de até {{numf}} alunos"
+    ]
+  },
+  maker_minima_padrao: {
+    title: "Amb. Mínima com Ferramentas Padrão",
+    subtitle: "Ideal para equipar espaço multi atividades",
+    items: [
+      "Conjunto de ferramentas Maker com amplas possibilidades",
+      "Adequada para turmas de até 36 alunos a depender do espaço"
+    ]
+  },
+  maker_minima_solo: {
+    title: "Ambientação Mínima",
+    subtitle: "Indicado para escolas que já possuem oficinas",
+    items: [
+      "Incluem containers, organizadores de materiais e adesivos de sinalização"
+    ]
+  }
+};
 
 export const BRAZIL_STATES = [
     { uf: 'AC', name: 'Acre', region: 'norte' },

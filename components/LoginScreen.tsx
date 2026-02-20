@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { auth, googleProvider } from '../firebase';
 import { AlertCircle, Loader2, WifiOff, ArrowRight } from 'lucide-react';
@@ -12,6 +13,9 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onOfflineLogin }) => {
   const [loading, setLoading] = useState(false);
   const [showGuestForm, setShowGuestForm] = useState(false);
   const [guestEmail, setGuestEmail] = useState('');
+
+  // Identifica se está no ambiente de produção (URL final)
+  const isProduction = window.location.hostname === 'comercial-lm.vercel.app';
 
   const handleGoogleLogin = async () => {
     setError('');
@@ -136,19 +140,23 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onOfflineLogin }) => {
                         Entrar com Google
                     </button>
 
-                    <div className="relative flex py-2 items-center">
-                        <div className="flex-grow border-t border-slate-200"></div>
-                        <span className="flex-shrink-0 mx-4 text-slate-400 text-xs uppercase">Ou</span>
-                        <div className="flex-grow border-t border-slate-200"></div>
-                    </div>
+                    {!isProduction && (
+                        <>
+                            <div className="relative flex py-2 items-center">
+                                <div className="flex-grow border-t border-slate-200"></div>
+                                <span className="flex-shrink-0 mx-4 text-slate-400 text-xs uppercase">Ou</span>
+                                <div className="flex-grow border-t border-slate-200"></div>
+                            </div>
 
-                    <button
-                        onClick={() => setShowGuestForm(true)}
-                        className="w-full bg-[#f8f9fa] text-slate-600 border border-dashed border-slate-400 py-3 rounded-lg font-medium hover:bg-slate-100 transition-all flex items-center justify-center gap-2 text-sm"
-                    >
-                        <WifiOff className="w-4 h-4" />
-                        Modo Visitante (Offline)
-                    </button>
+                            <button
+                                onClick={() => setShowGuestForm(true)}
+                                className="w-full bg-[#f8f9fa] text-slate-600 border border-dashed border-slate-400 py-3 rounded-lg font-medium hover:bg-slate-100 transition-all flex items-center justify-center gap-2 text-sm"
+                            >
+                                <WifiOff className="w-4 h-4" />
+                                Modo Visitante (Offline / Teste)
+                            </button>
+                        </>
+                    )}
                  </div>
               </>
           ) : (
