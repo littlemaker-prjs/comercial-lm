@@ -779,10 +779,25 @@ export const createGoogleSlidePresentation = async (
       }
 
       // ADD IMAGE (LEFT SIDE - Adjusted based on print)
-      // X=0.71cm (~20pt), Y=2.04cm (~58pt), W=11.43cm (~324pt), H=11.27cm (~320pt)
+      // Square 11.5cm x 11.5cm = 326pt x 326pt
+      const imgSize = 326;
+      const imgX = 20;
+      const imgY = 60;
+      
       if (imgUrl) {
-          addImage(slideId, imgUrl, 20, 58, 324, 320);
+          addImage(slideId, imgUrl, imgX, imgY, imgSize, imgSize);
       }
+
+      // Right Side Column
+      // Image ends at 20+326 = 346. 
+      // Gap = 14pt -> Start at 360.
+      const rightX = 360;
+      const rightW = 340; // Available width
+      
+      // Add Header "Memorial Descritivo Detalhado" (Right Side)
+      // Centered over the text area. Y=60 (Aligned with Image Top)
+      // "um pouco mais para baixo" -> Y=60
+      addText(slideId, "Memorial Descritivo Detalhado", rightX, imgY, rightW, 20, 10, GREEN, true, 'CENTER', 'MIDDLE');
 
       // Aggregate Items + Identity Items
       const aggregatedRegular: Record<string, number> = {};
@@ -818,33 +833,23 @@ export const createGoogleSlidePresentation = async (
           identityList.forEach(([name, qty]) => allLines.push(`${qty < 10 ? '0'+qty : qty}x ${name}`));
       }
 
-      // Right Side Column
-      // Image ends at 20+324 = 344. 
-      // Text Area starts around 354pt (12.5cm).
-      // Available width: 720 - 354 - 20 = 346.
-      const rightX = 354;
-      const rightW = 346;
-      
-      // Add Header "Memorial Descritivo Detalhado" (Right Side)
-      // Centered over the text area. Y=45 (Between Header and Text)
-      addText(slideId, "Memorial Descritivo Detalhado", rightX, 45, rightW, 20, 10, GREEN, true, 'CENTER');
-
       // Split into 2 columns for the list
       const half = Math.ceil(allLines.length / 2);
-      const col1 = allLines.slice(0, half).join('\n');
-      const col2 = allLines.slice(half).join('\n');
+      const col1Lines = allLines.slice(0, half).join('\n');
+      const col2Lines = allLines.slice(half).join('\n');
       
       // Columns Positions
-      const col1X = 354; // 12.5cm
-      const col2X = 553; // 19.5cm
-      const colW = 165; // Approx width for each column
-      const textY = 71; // 2.5cm
+      // Width 6.2cm = 176pt
+      const colW = 176;
+      const col1X = 360; 
+      const col2X = 360 + colW + 10; // 546
+      const textY = 85; // Below Subtitle (60 + 20 + 5)
 
       // Add Columns Text (Small Font 6pt, line spacing 1.0)
-      const col1Id = addText(slideId, col1, col1X, textY, colW, 300, 6, GRAY);
+      const col1Id = addText(slideId, col1Lines, col1X, textY, colW, 300, 6, GRAY);
       requests.push({ updateParagraphStyle: { objectId: col1Id, style: { lineSpacing: 100 }, fields: 'lineSpacing' } });
 
-      const col2Id = addText(slideId, col2, col2X, textY, colW, 300, 6, GRAY);
+      const col2Id = addText(slideId, col2Lines, col2X, textY, colW, 300, 6, GRAY);
       requests.push({ updateParagraphStyle: { objectId: col2Id, style: { lineSpacing: 100 }, fields: 'lineSpacing' } });
   });
 
