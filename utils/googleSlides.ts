@@ -307,21 +307,6 @@ export const createGoogleSlidePresentation = async (
           
           // 1. Bottom Round Rect (Gray) - The "Cap"
           const bodyBottomId = `body_bottom_${scopeId}_${idx}`;
-          requests.push({
-              createShape: {
-                  objectId: bodyBottomId,
-                  shapeType: 'ROUND_RECTANGLE',
-                  elementProperties: {
-                      pageObjectId: scopeId,
-                      size: { width: { magnitude: colWidth, unit: 'PT' }, height: { magnitude: radiusSize * 2, unit: 'PT' } }, // Double height to get correct radius if needed, but let's try matching height first. Actually, to get a specific radius, we might need a larger shape and crop it, but simpler is to use a small height.
-                      // If height is small (e.g. 20), the radius is small.
-                      transform: { scaleX: 1, scaleY: 1, translateX: xPos, translateY: cardY + cardHeight - (radiusSize * 2), unit: 'PT' }
-                  }
-              }
-          });
-          // Wait, if I use a small height, the radius is small. But I want the bottom half to be the rounded part.
-          // Better strategy: Use a ROUND_RECTANGLE for the whole bottom part, and cover the top half with a RECTANGLE.
-          // Or just use a ROUND_RECTANGLE of height 40, and cover the top 20 with the main body rectangle.
           
           const bodyCapHeight = 40; // Height to generate the radius
           const bodyCapY = cardY + cardHeight - bodyCapHeight;
