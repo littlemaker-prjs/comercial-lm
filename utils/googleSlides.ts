@@ -480,7 +480,7 @@ export const createGoogleSlidePresentation = async (
           shapeType: 'ROUND_RECTANGLE',
           elementProperties: {
               pageObjectId: valuesId,
-              size: { width: { magnitude: leftW, unit: 'PT' }, height: { magnitude: 40, unit: 'PT' } }, // Height 40 for radius
+              size: { width: { magnitude: leftW, unit: 'PT' }, height: { magnitude: 40, unit: 'PT' } }, // Height 40 for radius 20
               transform: { scaleX: 1, scaleY: 1, translateX: leftX, translateY: leftY, unit: 'PT' }
           }
       }
@@ -494,36 +494,7 @@ export const createGoogleSlidePresentation = async (
           shapeType: 'RECTANGLE',
           elementProperties: {
               pageObjectId: valuesId,
-              size: { width: { magnitude: leftW, unit: 'PT' }, height: { magnitude: headerH, unit: 'PT' } }, // Cover bottom half
-              transform: { scaleX: 1, scaleY: 1, translateX: leftX, translateY: leftY + 10, unit: 'PT' } // Overlap
-          }
-      }
-  });
-  // Actually, simpler: Round Rect (H=40) at Y, Rect (H=20) at Y+20. Total visual height 40? No, header is 20pt high.
-  // If header is 20pt high, radius will be small.
-  // Let's stick to the previous strategy: Round Rect (H=40) + Rect covering bottom half.
-  // If visual height is 20, we place Round Rect at Y, H=40. But then bottom 20 is below.
-  // We want visual height 20.
-  // So Round Rect H=40. Top half is visible. Bottom half needs to be covered by the Body.
-  // But Body is Gray. Header is Green.
-  // So we need a Green Rect to make the bottom of the header straight? No, if the body is below, it will just abut.
-  // But the Round Rect has rounded bottom corners.
-  // So we need a Green Rect at the bottom of the header space to fill the corners.
-  // Header Space: Y to Y+20.
-  // Round Rect: Y to Y+20. (Radius 10).
-  // Rect: Y+10 to Y+20. (Height 10).
-  
-  // Header: Round Rect (H=40) is too big for 20pt header.
-  // Let's use H=20 for Round Rect. Radius will be small. That's fine.
-  // To make bottom straight: Rect (H=10) at Y+10.
-  
-  requests.push({
-      createShape: {
-          objectId: leftHeaderStraightId,
-          shapeType: 'RECTANGLE',
-          elementProperties: {
-              pageObjectId: valuesId,
-              size: { width: { magnitude: leftW, unit: 'PT' }, height: { magnitude: 10, unit: 'PT' } },
+              size: { width: { magnitude: leftW, unit: 'PT' }, height: { magnitude: 10, unit: 'PT' } }, // Cover bottom half (10pt)
               transform: { scaleX: 1, scaleY: 1, translateX: leftX, translateY: leftY + 10, unit: 'PT' }
           }
       }
@@ -618,7 +589,7 @@ export const createGoogleSlidePresentation = async (
               shapeType: 'ROUND_RECTANGLE',
               elementProperties: {
                   pageObjectId: valuesId,
-                  size: { width: { magnitude: rightW, unit: 'PT' }, height: { magnitude: 20, unit: 'PT' } },
+                  size: { width: { magnitude: rightW, unit: 'PT' }, height: { magnitude: 40, unit: 'PT' } },
                   transform: { scaleX: 1, scaleY: 1, translateX: rightX, translateY: rightY, unit: 'PT' }
               }
           }
