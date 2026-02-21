@@ -147,7 +147,7 @@ export const createGoogleSlidePresentation = async (
     return objectId;
   };
 
-  const addText = (pageId: string, text: string, x: number, y: number, w: number, h: number, fontSize: number, color: any = BLACK, bold = false, align = 'START') => {
+  const addText = (pageId: string, text: string, x: number, y: number, w: number, h: number, fontSize: number, color: any = BLACK, bold = false, align = 'START', verticalAlign = 'TOP') => {
     const elementId = `text_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
     requests.push({
       createShape: {
@@ -185,6 +185,15 @@ export const createGoogleSlidePresentation = async (
         style: { alignment: align },
         fields: 'alignment'
       }
+    });
+    requests.push({
+        updateShapeProperties: {
+            objectId: elementId,
+            shapeProperties: {
+                contentAlignment: verticalAlign
+            },
+            fields: 'contentAlignment'
+        }
     });
     return elementId;
   };
@@ -268,16 +277,16 @@ export const createGoogleSlidePresentation = async (
             shapeType: 'RECTANGLE',
             elementProperties: {
                 pageObjectId: scopeId,
-                size: { width: { magnitude: 720, unit: 'PT' }, height: { magnitude: 30, unit: 'PT' } }, 
+                size: { width: { magnitude: 720, unit: 'PT' }, height: { magnitude: 50, unit: 'PT' } }, 
                 transform: { scaleX: 1, scaleY: 1, translateX: 0, translateY: 0, unit: 'PT' }
             }
         }
       });
       requests.push({ updateShapeProperties: { objectId: `header_${scopeId}`, shapeProperties: { shapeBackgroundFill: { solidFill: { color: { rgbColor: PURPLE } } }, outline: { propertyState: 'NOT_RENDERED' } }, fields: 'shapeBackgroundFill,outline' } });
-      addImage(scopeId, LOGO_URL, 20, 5, 80, 20);
+      addImage(scopeId, LOGO_URL, 20, 10, 100, 30);
       
       // Title in Header
-      addText(scopeId, "Infraestrutura Proposta", 140, 5, 560, 20, 18, WHITE, true, 'END');
+      addText(scopeId, "Infraestrutura Proposta", 140, 15, 560, 20, 18, WHITE, true, 'END', 'MIDDLE');
 
       // Columns Configuration
       const margin = 30;
@@ -291,13 +300,12 @@ export const createGoogleSlidePresentation = async (
           const xPos = margin + (idx * (colWidth + gutter));
           
           // --- Card Body (Gray) ---
-          // Goal: Straight Top, Rounded Bottom (Small Radius)
-          // Strategy: Main Rectangle + Bottom Round Rectangle (Height 45 to match header radius)
+          // Goal: Straight Top, Rounded Bottom (Small Radius 20pt)
           
-          const bodyRoundHeight = 45; // Same as header height for consistent radius
-          const bodyMainHeight = cardHeight - (bodyRoundHeight / 2); // Overlap halfway
+          const radiusSize = 20;
+          const bodyMainHeight = cardHeight - radiusSize; 
           
-          // 1. Bottom Round Rect (Gray)
+          // 1. Bottom Round Rect (Gray) - The "Cap"
           const bodyBottomId = `body_bottom_${scopeId}_${idx}`;
           requests.push({
               createShape: {
@@ -305,14 +313,34 @@ export const createGoogleSlidePresentation = async (
                   shapeType: 'ROUND_RECTANGLE',
                   elementProperties: {
                       pageObjectId: scopeId,
-                      size: { width: { magnitude: colWidth, unit: 'PT' }, height: { magnitude: bodyRoundHeight, unit: 'PT' } },
-                      transform: { scaleX: 1, scaleY: 1, translateX: xPos, translateY: cardY + cardHeight - bodyRoundHeight, unit: 'PT' }
+                      size: { width: { magnitude: colWidth, unit: 'PT' }, height: { magnitude: radiusSize * 2, unit: 'PT' } }, // Double height to get correct radius if needed, but let's try matching height first. Actually, to get a specific radius, we might need a larger shape and crop it, but simpler is to use a small height.
+                      // If height is small (e.g. 20), the radius is small.
+                      transform: { scaleX: 1, scaleY: 1, translateX: xPos, translateY: cardY + cardHeight - (radiusSize * 2), unit: 'PT' }
+                  }
+              }
+          });
+          // Wait, if I use a small height, the radius is small. But I want the bottom half to be the rounded part.
+          // Better strategy: Use a ROUND_RECTANGLE for the whole bottom part, and cover the top half with a RECTANGLE.
+          // Or just use a ROUND_RECTANGLE of height 40, and cover the top 20 with the main body rectangle.
+          
+          const bodyCapHeight = 40; // Height to generate the radius
+          const bodyCapY = cardY + cardHeight - bodyCapHeight;
+          
+          requests.push({
+              createShape: {
+                  objectId: bodyBottomId,
+                  shapeType: 'ROUND_RECTANGLE',
+                  elementProperties: {
+                      pageObjectId: scopeId,
+                      size: { width: { magnitude: colWidth, unit: 'PT' }, height: { magnitude: bodyCapHeight, unit: 'PT' } },
+                      transform: { scaleX: 1, scaleY: 1, translateX: xPos, translateY: bodyCapY, unit: 'PT' }
                   }
               }
           });
           requests.push({ updateShapeProperties: { objectId: bodyBottomId, shapeProperties: { shapeBackgroundFill: { solidFill: { color: { rgbColor: {red: 0.95, green: 0.95, blue: 0.95} } } }, outline: { propertyState: 'NOT_RENDERED' } }, fields: 'shapeBackgroundFill,outline' } });
 
           // 2. Main Rectangle (Gray) - Covers top of bottom round rect
+          // It needs to go down to (cardY + cardHeight - bodyCapHeight/2) to cover the top corners of the round rect.
           const bodyMainId = `body_main_${scopeId}_${idx}`;
           requests.push({
               createShape: {
@@ -320,7 +348,7 @@ export const createGoogleSlidePresentation = async (
                   shapeType: 'RECTANGLE',
                   elementProperties: {
                       pageObjectId: scopeId,
-                      size: { width: { magnitude: colWidth, unit: 'PT' }, height: { magnitude: bodyMainHeight, unit: 'PT' } },
+                      size: { width: { magnitude: colWidth, unit: 'PT' }, height: { magnitude: cardHeight - (bodyCapHeight / 2), unit: 'PT' } },
                       transform: { scaleX: 1, scaleY: 1, translateX: xPos, translateY: cardY, unit: 'PT' }
                   }
               }
@@ -330,9 +358,10 @@ export const createGoogleSlidePresentation = async (
 
           // --- Card Header (Green) ---
           // Goal: Rounded Top, Straight Bottom
-          // Strategy: Round Rect (Height 45) + Bottom Rectangle (Half Height)
           
-          // 1. Round Rect (Green)
+          const headerCapHeight = 40;
+          
+          // 1. Top Round Rect (Green)
           const headerRoundId = `header_round_${scopeId}_${idx}`;
           requests.push({
               createShape: {
@@ -340,14 +369,16 @@ export const createGoogleSlidePresentation = async (
                   shapeType: 'ROUND_RECTANGLE',
                   elementProperties: {
                       pageObjectId: scopeId,
-                      size: { width: { magnitude: colWidth, unit: 'PT' }, height: { magnitude: headerHeight, unit: 'PT' } },
+                      size: { width: { magnitude: colWidth, unit: 'PT' }, height: { magnitude: headerCapHeight, unit: 'PT' } },
                       transform: { scaleX: 1, scaleY: 1, translateX: xPos, translateY: cardY, unit: 'PT' }
                   }
               }
           });
           requests.push({ updateShapeProperties: { objectId: headerRoundId, shapeProperties: { shapeBackgroundFill: { solidFill: { color: { rgbColor: GREEN } } }, outline: { propertyState: 'NOT_RENDERED' } }, fields: 'shapeBackgroundFill,outline' } });
 
-          // 2. Bottom Rectangle (Green) - Covers bottom rounded corners
+          // 2. Bottom Rectangle (Green) - Covers bottom rounded corners of the header cap
+          // Starts at cardY + (headerCapHeight / 2)
+          // Height = headerHeight - (headerCapHeight / 2)
           const headerStraightId = `header_straight_${scopeId}_${idx}`;
           requests.push({
               createShape: {
@@ -355,8 +386,8 @@ export const createGoogleSlidePresentation = async (
                   shapeType: 'RECTANGLE',
                   elementProperties: {
                       pageObjectId: scopeId,
-                      size: { width: { magnitude: colWidth, unit: 'PT' }, height: { magnitude: headerHeight / 2, unit: 'PT' } },
-                      transform: { scaleX: 1, scaleY: 1, translateX: xPos, translateY: cardY + (headerHeight / 2), unit: 'PT' }
+                      size: { width: { magnitude: colWidth, unit: 'PT' }, height: { magnitude: headerHeight - (headerCapHeight / 2), unit: 'PT' } },
+                      transform: { scaleX: 1, scaleY: 1, translateX: xPos, translateY: cardY + (headerCapHeight / 2), unit: 'PT' }
                   }
               }
           });
@@ -364,10 +395,29 @@ export const createGoogleSlidePresentation = async (
 
 
           // 3. Header Title
-          addText(scopeId, content.title, xPos + 5, cardY + 5, colWidth - 10, headerHeight - 10, 10, WHITE, true, 'CENTER');
+          addText(scopeId, content.title, xPos + 5, cardY + 5, colWidth - 10, headerHeight - 10, 10, WHITE, true, 'CENTER', 'MIDDLE');
           
-          // 4. Subtitle (Below Header)
-          addText(scopeId, content.subtitle, xPos + 10, cardY + headerHeight + 10, colWidth - 20, 30, 9, GRAY, true, 'CENTER'); 
+          // 4. Subtitle (Below Header) - With Green Background
+          const subtitleY = cardY + headerHeight + 10;
+          const subtitleH = 30;
+          
+          // Background for Subtitle
+          const subBgId = `sub_bg_${scopeId}_${idx}`;
+          requests.push({
+              createShape: {
+                  objectId: subBgId,
+                  shapeType: 'RECTANGLE',
+                  elementProperties: {
+                      pageObjectId: scopeId,
+                      size: { width: { magnitude: colWidth, unit: 'PT' }, height: { magnitude: subtitleH, unit: 'PT' } },
+                      transform: { scaleX: 1, scaleY: 1, translateX: xPos, translateY: subtitleY, unit: 'PT' }
+                  }
+              }
+          });
+          // Light Green: {red: 0.92, green: 0.96, blue: 0.88}
+          requests.push({ updateShapeProperties: { objectId: subBgId, shapeProperties: { shapeBackgroundFill: { solidFill: { color: { rgbColor: {red: 0.92, green: 0.96, blue: 0.88} } } }, outline: { propertyState: 'NOT_RENDERED' } }, fields: 'shapeBackgroundFill,outline' } });
+
+          addText(scopeId, content.subtitle, xPos + 10, subtitleY, colWidth - 20, subtitleH, 9, GRAY, true, 'CENTER', 'MIDDLE'); 
 
           // 5. Items (List)
           const listText = content.items.map((it: string) => `• ${it}`).join('\n');
@@ -407,16 +457,16 @@ export const createGoogleSlidePresentation = async (
         shapeType: 'RECTANGLE',
         elementProperties: {
             pageObjectId: valuesId,
-            size: { width: { magnitude: 720, unit: 'PT' }, height: { magnitude: 30, unit: 'PT' } }, 
+            size: { width: { magnitude: 720, unit: 'PT' }, height: { magnitude: 50, unit: 'PT' } }, 
             transform: { scaleX: 1, scaleY: 1, translateX: 0, translateY: 0, unit: 'PT' }
         }
     }
   });
   requests.push({ updateShapeProperties: { objectId: `header_${valuesId}`, shapeProperties: { shapeBackgroundFill: { solidFill: { color: { rgbColor: PURPLE } } }, outline: { propertyState: 'NOT_RENDERED' } }, fields: 'shapeBackgroundFill,outline' } });
-  addImage(valuesId, LOGO_URL, 20, 5, 80, 20);
+  addImage(valuesId, LOGO_URL, 20, 10, 100, 30);
 
   // Title in Header
-  addText(valuesId, "Condições Comerciais", 140, 5, 560, 20, 18, WHITE, true, 'END');
+  addText(valuesId, "Condições Comerciais", 140, 15, 560, 20, 18, WHITE, true, 'END', 'MIDDLE');
 
   // Data Preparation
   const totalStudents = calculations.totalStudents;
@@ -607,16 +657,16 @@ export const createGoogleSlidePresentation = async (
             shapeType: 'RECTANGLE',
             elementProperties: {
                 pageObjectId: slideId,
-                size: { width: { magnitude: 720, unit: 'PT' }, height: { magnitude: 30, unit: 'PT' } }, 
+                size: { width: { magnitude: 720, unit: 'PT' }, height: { magnitude: 50, unit: 'PT' } }, 
                 transform: { scaleX: 1, scaleY: 1, translateX: 0, translateY: 0, unit: 'PT' }
             }
         }
       });
       requests.push({ updateShapeProperties: { objectId: `header_${slideId}`, shapeProperties: { shapeBackgroundFill: { solidFill: { color: { rgbColor: PURPLE } } }, outline: { propertyState: 'NOT_RENDERED' } }, fields: 'shapeBackgroundFill,outline' } });
-      addImage(slideId, LOGO_URL, 20, 5, 80, 20); // Adjusted Logo to fit smaller header
+      addImage(slideId, LOGO_URL, 20, 10, 100, 30); // Adjusted Logo to fit smaller header
       
       // Title in Header (Matching Scope Slide Title)
-      addText(slideId, title, 140, 5, 560, 20, 18, WHITE, true, 'END');
+      addText(slideId, title, 140, 15, 560, 20, 18, WHITE, true, 'END', 'MIDDLE');
 
       // Footer
       requests.push({
