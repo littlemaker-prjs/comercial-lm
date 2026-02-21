@@ -261,25 +261,25 @@ export const createGoogleSlidePresentation = async (
   if (scopeContents.length > 0) {
       const scopeId = addSlide();
       
-      // Header
+      // Header Bar Reuse
       requests.push({
         createShape: {
             objectId: `header_${scopeId}`,
             shapeType: 'RECTANGLE',
             elementProperties: {
                 pageObjectId: scopeId,
-                size: { width: { magnitude: 720, unit: 'PT' }, height: { magnitude: 50, unit: 'PT' } },
+                size: { width: { magnitude: 720, unit: 'PT' }, height: { magnitude: 30, unit: 'PT' } }, 
                 transform: { scaleX: 1, scaleY: 1, translateX: 0, translateY: 0, unit: 'PT' }
             }
         }
       });
       requests.push({ updateShapeProperties: { objectId: `header_${scopeId}`, shapeProperties: { shapeBackgroundFill: { solidFill: { color: { rgbColor: PURPLE } } }, outline: { propertyState: 'NOT_RENDERED' } }, fields: 'shapeBackgroundFill,outline' } });
-      addImage(scopeId, LOGO_URL, 20, 10, 100, 30);
+      addImage(scopeId, LOGO_URL, 20, 5, 80, 20);
       
       // Title in Header
-      addText(scopeId, "Infraestrutura Proposta", 140, 10, 560, 30, 24, WHITE, true, 'END');
+      addText(scopeId, "Infraestrutura Proposta", 140, 5, 560, 20, 18, WHITE, true, 'END');
 
-      // Columns Configuration (Fixed based on screenshots)
+      // Columns Configuration
       const margin = 30;
       const gutter = 12;
       const colWidth = 212;
@@ -290,26 +290,53 @@ export const createGoogleSlidePresentation = async (
       scopeContents.forEach((content, idx) => {
           const xPos = margin + (idx * (colWidth + gutter));
           
-          // 1. Card Body (Gray Background)
-          const bodyId = `body_${scopeId}_${idx}`;
+          // --- Card Body (Gray) ---
+          // Goal: Straight Top, Rounded Bottom (Small Radius)
+          // Strategy: Main Rectangle + Bottom Round Rectangle (Height 45 to match header radius)
+          
+          const bodyRoundHeight = 45; // Same as header height for consistent radius
+          const bodyMainHeight = cardHeight - (bodyRoundHeight / 2); // Overlap halfway
+          
+          // 1. Bottom Round Rect (Gray)
+          const bodyBottomId = `body_bottom_${scopeId}_${idx}`;
           requests.push({
               createShape: {
-                  objectId: bodyId,
+                  objectId: bodyBottomId,
                   shapeType: 'ROUND_RECTANGLE',
                   elementProperties: {
                       pageObjectId: scopeId,
-                      size: { width: { magnitude: colWidth, unit: 'PT' }, height: { magnitude: cardHeight, unit: 'PT' } },
+                      size: { width: { magnitude: colWidth, unit: 'PT' }, height: { magnitude: bodyRoundHeight, unit: 'PT' } },
+                      transform: { scaleX: 1, scaleY: 1, translateX: xPos, translateY: cardY + cardHeight - bodyRoundHeight, unit: 'PT' }
+                  }
+              }
+          });
+          requests.push({ updateShapeProperties: { objectId: bodyBottomId, shapeProperties: { shapeBackgroundFill: { solidFill: { color: { rgbColor: {red: 0.95, green: 0.95, blue: 0.95} } } }, outline: { propertyState: 'NOT_RENDERED' } }, fields: 'shapeBackgroundFill,outline' } });
+
+          // 2. Main Rectangle (Gray) - Covers top of bottom round rect
+          const bodyMainId = `body_main_${scopeId}_${idx}`;
+          requests.push({
+              createShape: {
+                  objectId: bodyMainId,
+                  shapeType: 'RECTANGLE',
+                  elementProperties: {
+                      pageObjectId: scopeId,
+                      size: { width: { magnitude: colWidth, unit: 'PT' }, height: { magnitude: bodyMainHeight, unit: 'PT' } },
                       transform: { scaleX: 1, scaleY: 1, translateX: xPos, translateY: cardY, unit: 'PT' }
                   }
               }
           });
-          requests.push({ updateShapeProperties: { objectId: bodyId, shapeProperties: { shapeBackgroundFill: { solidFill: { color: { rgbColor: {red: 0.95, green: 0.95, blue: 0.95} } } }, outline: { propertyState: 'NOT_RENDERED' } }, fields: 'shapeBackgroundFill,outline' } });
+          requests.push({ updateShapeProperties: { objectId: bodyMainId, shapeProperties: { shapeBackgroundFill: { solidFill: { color: { rgbColor: {red: 0.95, green: 0.95, blue: 0.95} } } }, outline: { propertyState: 'NOT_RENDERED' } }, fields: 'shapeBackgroundFill,outline' } });
 
-          // 2. Card Header (Green Background)
-          const headerId = `header_${scopeId}_${idx}`;
+
+          // --- Card Header (Green) ---
+          // Goal: Rounded Top, Straight Bottom
+          // Strategy: Round Rect (Height 45) + Bottom Rectangle (Half Height)
+          
+          // 1. Round Rect (Green)
+          const headerRoundId = `header_round_${scopeId}_${idx}`;
           requests.push({
               createShape: {
-                  objectId: headerId,
+                  objectId: headerRoundId,
                   shapeType: 'ROUND_RECTANGLE',
                   elementProperties: {
                       pageObjectId: scopeId,
@@ -318,10 +345,23 @@ export const createGoogleSlidePresentation = async (
                   }
               }
           });
-          requests.push({ updateShapeProperties: { objectId: headerId, shapeProperties: { shapeBackgroundFill: { solidFill: { color: { rgbColor: GREEN } } }, outline: { propertyState: 'NOT_RENDERED' } }, fields: 'shapeBackgroundFill,outline' } });
+          requests.push({ updateShapeProperties: { objectId: headerRoundId, shapeProperties: { shapeBackgroundFill: { solidFill: { color: { rgbColor: GREEN } } }, outline: { propertyState: 'NOT_RENDERED' } }, fields: 'shapeBackgroundFill,outline' } });
 
-          // To make the header look like a "cap" (flat bottom), we can add a small rectangle at the bottom of the header
-          // or just accept the rounded look. The user's screenshot shows rounded. I'll stick to rounded.
+          // 2. Bottom Rectangle (Green) - Covers bottom rounded corners
+          const headerStraightId = `header_straight_${scopeId}_${idx}`;
+          requests.push({
+              createShape: {
+                  objectId: headerStraightId,
+                  shapeType: 'RECTANGLE',
+                  elementProperties: {
+                      pageObjectId: scopeId,
+                      size: { width: { magnitude: colWidth, unit: 'PT' }, height: { magnitude: headerHeight / 2, unit: 'PT' } },
+                      transform: { scaleX: 1, scaleY: 1, translateX: xPos, translateY: cardY + (headerHeight / 2), unit: 'PT' }
+                  }
+              }
+          });
+          requests.push({ updateShapeProperties: { objectId: headerStraightId, shapeProperties: { shapeBackgroundFill: { solidFill: { color: { rgbColor: GREEN } } }, outline: { propertyState: 'NOT_RENDERED' } }, fields: 'shapeBackgroundFill,outline' } });
+
 
           // 3. Header Title
           addText(scopeId, content.title, xPos + 5, cardY + 5, colWidth - 10, headerHeight - 10, 10, WHITE, true, 'CENTER');
