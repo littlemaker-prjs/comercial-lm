@@ -212,6 +212,7 @@ export const createGoogleSlidePresentation = async (
             }
         }
     });
+    return elementId;
   };
 
   // --- SLIDE 1: CAPA ---
@@ -785,7 +786,20 @@ export const createGoogleSlidePresentation = async (
       const imgY = 60;
       
       if (imgUrl) {
-          addImage(slideId, imgUrl, imgX, imgY, imgSize, imgSize);
+          // Use a square placeholder to force the shape to be square
+          // Then replace with the real image using CENTER_CROP to fill the square
+          const placeholderUrl = "https://dummyimage.com/400x400/cccccc/cccccc";
+          const imgId = addImage(slideId, placeholderUrl, imgX, imgY, imgSize, imgSize);
+          
+          if (imgId) {
+              requests.push({
+                  replaceImage: {
+                      imageObjectId: imgId,
+                      imageReplaceMethod: 'CENTER_CROP',
+                      url: imgUrl
+                  }
+              });
+          }
       }
 
       // Right Side Column
