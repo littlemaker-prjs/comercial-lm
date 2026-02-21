@@ -383,8 +383,9 @@ export const createGoogleSlidePresentation = async (
           addText(scopeId, content.title, xPos + 5, cardY + 5, colWidth - 10, headerHeight - 10, 10, WHITE, true, 'CENTER', 'MIDDLE');
           
           // 4. Subtitle (Below Header) - With Green Background
-          const subtitleY = cardY + headerHeight + 10;
-          const subtitleH = 30;
+          // "colada na verde do título" -> Start at cardY + headerHeight
+          const subtitleY = cardY + headerHeight;
+          const subtitleH = 40; // "um pouco mais alta"
           
           // Background for Subtitle
           const subBgId = `sub_bg_${scopeId}_${idx}`;
@@ -406,7 +407,7 @@ export const createGoogleSlidePresentation = async (
 
           // 5. Items (List)
           const listText = content.items.map((it: string) => `• ${it}`).join('\n');
-          const listId = addText(scopeId, listText, xPos + 10, cardY + headerHeight + 45, colWidth - 20, cardHeight - headerHeight - 55, 8, BLACK);
+          const listId = addText(scopeId, listText, xPos + 10, cardY + headerHeight + subtitleH + 10, colWidth - 20, cardHeight - headerHeight - subtitleH - 20, 8, BLACK);
           requests.push({
             updateParagraphStyle: {
                 objectId: listId,
@@ -470,48 +471,112 @@ export const createGoogleSlidePresentation = async (
   const leftW = 300;
   const headerH = 20;
   const rowH = 25;
-
-  // Header
-  const leftHeaderId = `left_header_${valuesId}`;
+  
+  // Composite Header (Green) - Rounded Top, Straight Bottom
+  const leftHeaderRoundId = `left_header_round_${valuesId}`;
   requests.push({
       createShape: {
-          objectId: leftHeaderId,
+          objectId: leftHeaderRoundId,
           shapeType: 'ROUND_RECTANGLE',
           elementProperties: {
               pageObjectId: valuesId,
-              size: { width: { magnitude: leftW, unit: 'PT' }, height: { magnitude: headerH, unit: 'PT' } },
+              size: { width: { magnitude: leftW, unit: 'PT' }, height: { magnitude: 40, unit: 'PT' } }, // Height 40 for radius
               transform: { scaleX: 1, scaleY: 1, translateX: leftX, translateY: leftY, unit: 'PT' }
           }
       }
   });
-  requests.push({ updateShapeProperties: { objectId: leftHeaderId, shapeProperties: { shapeBackgroundFill: { solidFill: { color: { rgbColor: GREEN } } }, outline: { propertyState: 'NOT_RENDERED' } }, fields: 'shapeBackgroundFill,outline' } });
-  addText(valuesId, "Material do Aluno", leftX, leftY, leftW, headerH, 10, WHITE, true, 'CENTER');
+  requests.push({ updateShapeProperties: { objectId: leftHeaderRoundId, shapeProperties: { shapeBackgroundFill: { solidFill: { color: { rgbColor: GREEN } } }, outline: { propertyState: 'NOT_RENDERED' } }, fields: 'shapeBackgroundFill,outline' } });
 
-  // Body
-  const leftBodyId = `left_body_${valuesId}`;
+  const leftHeaderStraightId = `left_header_straight_${valuesId}`;
   requests.push({
       createShape: {
-          objectId: leftBodyId,
-          shapeType: 'ROUND_RECTANGLE',
+          objectId: leftHeaderStraightId,
+          shapeType: 'RECTANGLE',
           elementProperties: {
               pageObjectId: valuesId,
-              size: { width: { magnitude: leftW, unit: 'PT' }, height: { magnitude: 4 * rowH, unit: 'PT' } },
-              transform: { scaleX: 1, scaleY: 1, translateX: leftX, translateY: leftY + headerH, unit: 'PT' }
+              size: { width: { magnitude: leftW, unit: 'PT' }, height: { magnitude: headerH, unit: 'PT' } }, // Cover bottom half
+              transform: { scaleX: 1, scaleY: 1, translateX: leftX, translateY: leftY + 10, unit: 'PT' } // Overlap
           }
       }
   });
-  requests.push({ updateShapeProperties: { objectId: leftBodyId, shapeProperties: { shapeBackgroundFill: { solidFill: { color: { rgbColor: {red: 0.96, green: 0.96, blue: 0.96} } } }, outline: { propertyState: 'NOT_RENDERED' } }, fields: 'shapeBackgroundFill,outline' } });
+  // Actually, simpler: Round Rect (H=40) at Y, Rect (H=20) at Y+20. Total visual height 40? No, header is 20pt high.
+  // If header is 20pt high, radius will be small.
+  // Let's stick to the previous strategy: Round Rect (H=40) + Rect covering bottom half.
+  // If visual height is 20, we place Round Rect at Y, H=40. But then bottom 20 is below.
+  // We want visual height 20.
+  // So Round Rect H=40. Top half is visible. Bottom half needs to be covered by the Body.
+  // But Body is Gray. Header is Green.
+  // So we need a Green Rect to make the bottom of the header straight? No, if the body is below, it will just abut.
+  // But the Round Rect has rounded bottom corners.
+  // So we need a Green Rect at the bottom of the header space to fill the corners.
+  // Header Space: Y to Y+20.
+  // Round Rect: Y to Y+20. (Radius 10).
+  // Rect: Y+10 to Y+20. (Height 10).
+  
+  // Header: Round Rect (H=40) is too big for 20pt header.
+  // Let's use H=20 for Round Rect. Radius will be small. That's fine.
+  // To make bottom straight: Rect (H=10) at Y+10.
+  
+  requests.push({
+      createShape: {
+          objectId: leftHeaderStraightId,
+          shapeType: 'RECTANGLE',
+          elementProperties: {
+              pageObjectId: valuesId,
+              size: { width: { magnitude: leftW, unit: 'PT' }, height: { magnitude: 10, unit: 'PT' } },
+              transform: { scaleX: 1, scaleY: 1, translateX: leftX, translateY: leftY + 10, unit: 'PT' }
+          }
+      }
+  });
+  requests.push({ updateShapeProperties: { objectId: leftHeaderStraightId, shapeProperties: { shapeBackgroundFill: { solidFill: { color: { rgbColor: GREEN } } }, outline: { propertyState: 'NOT_RENDERED' } }, fields: 'shapeBackgroundFill,outline' } });
+
+  addText(valuesId, "Material do Aluno", leftX, leftY, leftW, headerH, 10, WHITE, true, 'CENTER', 'MIDDLE');
+
+  // Composite Body (Gray) - Straight Top, Rounded Bottom
+  // Rows: Total, Inv/Ano, Inv/Mês. (3 rows * 25 = 75pt).
+  const leftBodyH = 75;
+  const leftBodyY = leftY + headerH;
+  
+  // 1. Bottom Round Rect (Gray)
+  const leftBodyBottomId = `left_body_bottom_${valuesId}`;
+  const leftBodyCapH = 20;
+  requests.push({
+      createShape: {
+          objectId: leftBodyBottomId,
+          shapeType: 'ROUND_RECTANGLE',
+          elementProperties: {
+              pageObjectId: valuesId,
+              size: { width: { magnitude: leftW, unit: 'PT' }, height: { magnitude: leftBodyCapH, unit: 'PT' } },
+              transform: { scaleX: 1, scaleY: 1, translateX: leftX, translateY: leftBodyY + leftBodyH - leftBodyCapH, unit: 'PT' }
+          }
+      }
+  });
+  requests.push({ updateShapeProperties: { objectId: leftBodyBottomId, shapeProperties: { shapeBackgroundFill: { solidFill: { color: { rgbColor: {red: 0.95, green: 0.95, blue: 0.95} } } }, outline: { propertyState: 'NOT_RENDERED' } }, fields: 'shapeBackgroundFill,outline' } });
+
+  // 2. Main Rect (Gray) - Covers top
+  const leftBodyMainId = `left_body_main_${valuesId}`;
+  requests.push({
+      createShape: {
+          objectId: leftBodyMainId,
+          shapeType: 'RECTANGLE',
+          elementProperties: {
+              pageObjectId: valuesId,
+              size: { width: { magnitude: leftW, unit: 'PT' }, height: { magnitude: leftBodyH - (leftBodyCapH / 2), unit: 'PT' } },
+              transform: { scaleX: 1, scaleY: 1, translateX: leftX, translateY: leftBodyY, unit: 'PT' }
+          }
+      }
+  });
+  requests.push({ updateShapeProperties: { objectId: leftBodyMainId, shapeProperties: { shapeBackgroundFill: { solidFill: { color: { rgbColor: {red: 0.95, green: 0.95, blue: 0.95} } } }, outline: { propertyState: 'NOT_RENDERED' } }, fields: 'shapeBackgroundFill,outline' } });
 
   // Rows
   const leftRows = [
-      { label: "Total de Alunos", value: totalStudents.toString(), bold: false },
-      { label: "Investimento Aluno/Ano *", value: formatCurrency(materialYear), bold: false },
-      { label: "Investimento Aluno/Mês *", value: formatCurrency(materialMonth), bold: true, highlight: true },
-      { label: "Bônus Fidelidade (Desc.)", value: calculations.materialDiscountAmount > 0 ? "- " + formatCurrency(calculations.materialDiscountAmount) : "-", bold: false, color: GREEN }
+      { label: "Total de Alunos", value: totalStudents.toString(), bold: false, color: BLACK },
+      { label: "Investimento Aluno/Ano *", value: formatCurrency(materialYear), bold: false, color: BLACK },
+      { label: "Investimento Aluno/Mês *", value: formatCurrency(materialMonth), bold: true, highlight: true, color: BLACK }
   ];
 
   leftRows.forEach((row, idx) => {
-      const y = leftY + headerH + (idx * rowH);
+      const y = leftBodyY + (idx * rowH);
       if (row.highlight) {
          const hlId = `hl_left_${valuesId}_${idx}`;
          requests.push({
@@ -520,16 +585,23 @@ export const createGoogleSlidePresentation = async (
                 shapeType: 'RECTANGLE',
                 elementProperties: {
                     pageObjectId: valuesId,
-                    size: { width: { magnitude: leftW - 4, unit: 'PT' }, height: { magnitude: rowH, unit: 'PT' } },
-                    transform: { scaleX: 1, scaleY: 1, translateX: leftX + 2, translateY: y, unit: 'PT' }
+                    size: { width: { magnitude: leftW, unit: 'PT' }, height: { magnitude: rowH, unit: 'PT' } }, // Full width
+                    transform: { scaleX: 1, scaleY: 1, translateX: leftX, translateY: y, unit: 'PT' }
                 }
             }
          });
-         requests.push({ updateShapeProperties: { objectId: hlId, shapeProperties: { shapeBackgroundFill: { solidFill: { color: { rgbColor: {red: 1, green: 1, blue: 1} } } }, outline: { propertyState: 'NOT_RENDERED' } }, fields: 'shapeBackgroundFill,outline' } });
+         // Light Green Background
+         requests.push({ updateShapeProperties: { objectId: hlId, shapeProperties: { shapeBackgroundFill: { solidFill: { color: { rgbColor: {red: 0.92, green: 0.96, blue: 0.88} } } }, outline: { propertyState: 'NOT_RENDERED' } }, fields: 'shapeBackgroundFill,outline' } });
       }
-      addText(valuesId, row.label, leftX + 10, y, leftW / 2, rowH, 9, BLACK, row.bold, 'START');
-      addText(valuesId, row.value, leftX + (leftW / 2), y, (leftW / 2) - 10, rowH, 10, row.color || BLACK, row.bold, 'END');
+      addText(valuesId, row.label, leftX + 10, y, leftW / 2, rowH, 9, BLACK, row.bold, 'START', 'MIDDLE');
+      addText(valuesId, row.value, leftX + (leftW / 2), y, (leftW / 2) - 10, rowH, row.highlight ? 11 : 10, row.color || BLACK, row.bold, 'END', 'MIDDLE');
   });
+  
+  // Bonus Outside
+  const bonusY = leftBodyY + leftBodyH + 5;
+  const bonusRow = { label: "Bônus Fidelidade (Desc.)", value: calculations.materialDiscountAmount > 0 ? "- " + formatCurrency(calculations.materialDiscountAmount) : "-", bold: false, color: GREEN };
+  addText(valuesId, bonusRow.label, leftX + 10, bonusY, leftW / 2, rowH, 9, BLACK, false, 'START', 'MIDDLE');
+  addText(valuesId, bonusRow.value, leftX + (leftW / 2), bonusY, (leftW / 2) - 10, rowH, 10, GREEN, false, 'END', 'MIDDLE');
 
 
   // --- RIGHT TABLE (Infra) ---
@@ -538,47 +610,83 @@ export const createGoogleSlidePresentation = async (
       const rightY = 95;
       const rightW = 320;
       
-      // Header
-      const rightHeaderId = `right_header_${valuesId}`;
+      // Composite Header (Green)
+      const rightHeaderRoundId = `right_header_round_${valuesId}`;
       requests.push({
           createShape: {
-              objectId: rightHeaderId,
+              objectId: rightHeaderRoundId,
               shapeType: 'ROUND_RECTANGLE',
               elementProperties: {
                   pageObjectId: valuesId,
-                  size: { width: { magnitude: rightW, unit: 'PT' }, height: { magnitude: 20, unit: 'PT' } }, // headerH is 20
+                  size: { width: { magnitude: rightW, unit: 'PT' }, height: { magnitude: 20, unit: 'PT' } },
                   transform: { scaleX: 1, scaleY: 1, translateX: rightX, translateY: rightY, unit: 'PT' }
               }
           }
       });
-      requests.push({ updateShapeProperties: { objectId: rightHeaderId, shapeProperties: { shapeBackgroundFill: { solidFill: { color: { rgbColor: GREEN } } }, outline: { propertyState: 'NOT_RENDERED' } }, fields: 'shapeBackgroundFill,outline' } });
-      addText(valuesId, "Infraestrutura (Ambientação e Ferramentas)", rightX, rightY, rightW, 20, 10, WHITE, true, 'CENTER');
+      requests.push({ updateShapeProperties: { objectId: rightHeaderRoundId, shapeProperties: { shapeBackgroundFill: { solidFill: { color: { rgbColor: GREEN } } }, outline: { propertyState: 'NOT_RENDERED' } }, fields: 'shapeBackgroundFill,outline' } });
 
-      // Body
-      const rightBodyId = `right_body_${valuesId}`;
+      const rightHeaderStraightId = `right_header_straight_${valuesId}`;
       requests.push({
           createShape: {
-              objectId: rightBodyId,
-              shapeType: 'ROUND_RECTANGLE',
+              objectId: rightHeaderStraightId,
+              shapeType: 'RECTANGLE',
               elementProperties: {
                   pageObjectId: valuesId,
-                  size: { width: { magnitude: rightW, unit: 'PT' }, height: { magnitude: 4 * 25, unit: 'PT' } }, // rowH is 25
-                  transform: { scaleX: 1, scaleY: 1, translateX: rightX, translateY: rightY + 20, unit: 'PT' }
+                  size: { width: { magnitude: rightW, unit: 'PT' }, height: { magnitude: 10, unit: 'PT' } },
+                  transform: { scaleX: 1, scaleY: 1, translateX: rightX, translateY: rightY + 10, unit: 'PT' }
               }
           }
       });
-      requests.push({ updateShapeProperties: { objectId: rightBodyId, shapeProperties: { shapeBackgroundFill: { solidFill: { color: { rgbColor: {red: 0.96, green: 0.96, blue: 0.96} } } }, outline: { propertyState: 'NOT_RENDERED' } }, fields: 'shapeBackgroundFill,outline' } });
+      requests.push({ updateShapeProperties: { objectId: rightHeaderStraightId, shapeProperties: { shapeBackgroundFill: { solidFill: { color: { rgbColor: GREEN } } }, outline: { propertyState: 'NOT_RENDERED' } }, fields: 'shapeBackgroundFill,outline' } });
+
+      addText(valuesId, "Infraestrutura (Ambientação e Ferramentas)", rightX, rightY, rightW, 20, 10, WHITE, true, 'CENTER', 'MIDDLE');
+
+      // Composite Body (Gray)
+      // Rows: Inv Infra, Desc Bonus, Total, Parcelamento. (4 rows * 25 = 100pt).
+      const rightBodyH = 100;
+      const rightBodyY = rightY + 20;
+
+      // 1. Bottom Round Rect
+      const rightBodyBottomId = `right_body_bottom_${valuesId}`;
+      const rightBodyCapH = 20;
+      requests.push({
+          createShape: {
+              objectId: rightBodyBottomId,
+              shapeType: 'ROUND_RECTANGLE',
+              elementProperties: {
+                  pageObjectId: valuesId,
+                  size: { width: { magnitude: rightW, unit: 'PT' }, height: { magnitude: rightBodyCapH, unit: 'PT' } },
+                  transform: { scaleX: 1, scaleY: 1, translateX: rightX, translateY: rightBodyY + rightBodyH - rightBodyCapH, unit: 'PT' }
+              }
+          }
+      });
+      requests.push({ updateShapeProperties: { objectId: rightBodyBottomId, shapeProperties: { shapeBackgroundFill: { solidFill: { color: { rgbColor: {red: 0.95, green: 0.95, blue: 0.95} } } }, outline: { propertyState: 'NOT_RENDERED' } }, fields: 'shapeBackgroundFill,outline' } });
+
+      // 2. Main Rect
+      const rightBodyMainId = `right_body_main_${valuesId}`;
+      requests.push({
+          createShape: {
+              objectId: rightBodyMainId,
+              shapeType: 'RECTANGLE',
+              elementProperties: {
+                  pageObjectId: valuesId,
+                  size: { width: { magnitude: rightW, unit: 'PT' }, height: { magnitude: rightBodyH - (rightBodyCapH / 2), unit: 'PT' } },
+                  transform: { scaleX: 1, scaleY: 1, translateX: rightX, translateY: rightBodyY, unit: 'PT' }
+              }
+          }
+      });
+      requests.push({ updateShapeProperties: { objectId: rightBodyMainId, shapeProperties: { shapeBackgroundFill: { solidFill: { color: { rgbColor: {red: 0.95, green: 0.95, blue: 0.95} } } }, outline: { propertyState: 'NOT_RENDERED' } }, fields: 'shapeBackgroundFill,outline' } });
 
       // Rows
       const rightRows = [
-          { label: "Investimento Infraestrutura ***", value: formatCurrency(infraTotal), bold: false },
+          { label: "Investimento Infraestrutura ***", value: formatCurrency(infraTotal), bold: false, color: BLACK },
           { label: "Desconto bônus fidelidade **", value: bonus > 0 ? "- " + formatCurrency(bonus) : "-", bold: false, color: GREEN },
-          { label: "Total Final (Único)", value: formatCurrency(infraFinal), bold: true },
-          { label: "Parcelamento (3x)", value: formatCurrency(parcelas), bold: true, highlight: true }
+          { label: "Total Final (Único)", value: formatCurrency(infraFinal), bold: true, color: BLACK },
+          { label: "Parcelamento (3x)", value: formatCurrency(parcelas), bold: true, highlight: true, color: BLACK }
       ];
 
       rightRows.forEach((row, idx) => {
-          const y = rightY + 20 + (idx * 25);
+          const y = rightBodyY + (idx * 25);
           if (row.highlight) {
              const hlId = `hl_right_${valuesId}_${idx}`;
              requests.push({
@@ -587,15 +695,16 @@ export const createGoogleSlidePresentation = async (
                     shapeType: 'RECTANGLE',
                     elementProperties: {
                         pageObjectId: valuesId,
-                        size: { width: { magnitude: rightW - 4, unit: 'PT' }, height: { magnitude: 25, unit: 'PT' } },
-                        transform: { scaleX: 1, scaleY: 1, translateX: rightX + 2, translateY: y, unit: 'PT' }
+                        size: { width: { magnitude: rightW, unit: 'PT' }, height: { magnitude: 25, unit: 'PT' } },
+                        transform: { scaleX: 1, scaleY: 1, translateX: rightX, translateY: y, unit: 'PT' }
                     }
                 }
              });
-             requests.push({ updateShapeProperties: { objectId: hlId, shapeProperties: { shapeBackgroundFill: { solidFill: { color: { rgbColor: {red: 1, green: 1, blue: 1} } } }, outline: { propertyState: 'NOT_RENDERED' } }, fields: 'shapeBackgroundFill,outline' } });
+             // Light Green Background
+             requests.push({ updateShapeProperties: { objectId: hlId, shapeProperties: { shapeBackgroundFill: { solidFill: { color: { rgbColor: {red: 0.92, green: 0.96, blue: 0.88} } } }, outline: { propertyState: 'NOT_RENDERED' } }, fields: 'shapeBackgroundFill,outline' } });
           }
-          addText(valuesId, row.label, rightX + 10, y, rightW / 2 + 20, 25, 9, BLACK, row.bold, 'START');
-          addText(valuesId, row.value, rightX + (rightW / 2) + 20, y, (rightW / 2) - 30, 25, 10, row.color || BLACK, row.bold, 'END');
+          addText(valuesId, row.label, rightX + 10, y, rightW / 2 + 20, 25, 9, BLACK, row.bold, 'START', 'MIDDLE');
+          addText(valuesId, row.value, rightX + (rightW / 2) + 20, y, (rightW / 2) - 30, 25, row.highlight ? 11 : 10, row.color || BLACK, row.bold, 'END', 'MIDDLE');
       });
   }
 
@@ -615,7 +724,7 @@ export const createGoogleSlidePresentation = async (
   }
   footnotes.push("Proposta válida por 30 dias a partir da data de emissão.");
 
-  addText(valuesId, footnotes.join('\n'), 40, 250, 640, 100, 6, GRAY);
+  addText(valuesId, footnotes.join('\n'), 40, 250, 640, 100, 8, GRAY);
 
   requests.push({
     createShape: {
