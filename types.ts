@@ -2,6 +2,7 @@
 export interface ClientInfo {
   schoolName: string;
   contactName: string;
+  consultantName?: string;
   date: string;
   state: string; // Novo campo
   segments: string[];

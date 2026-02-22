@@ -233,10 +233,15 @@ export const createGoogleSlidePresentation = async (
   requests.push({ updateShapeProperties: { objectId: `header_${coverId}`, shapeProperties: { shapeBackgroundFill: { solidFill: { color: { rgbColor: PURPLE } } }, outline: { propertyState: 'NOT_RENDERED' } }, fields: 'shapeBackgroundFill,outline' } });
 
   addImage(coverId, LOGO_URL, 20, 10, 100, 30);
-  addText(coverId, "Proposta Comercial", 0, 150, 720, 50, 32, PURPLE, true, 'CENTER');
-  addText(coverId, client.schoolName || 'Escola', 0, 210, 720, 40, 24, GRAY, false, 'CENTER');
+  
+  // Cover Content
+  addText(coverId, client.schoolName || 'Escola', 0, 150, 720, 50, 32, PURPLE, true, 'CENTER');
+  addText(coverId, `A/C: ${client.contactName}`, 0, 210, 720, 30, 18, GRAY, false, 'CENTER');
+  
   const dateStr = new Date(client.date).toLocaleDateString('pt-BR');
-  addText(coverId, `A/C: ${client.contactName} • ${dateStr}`, 0, 260, 720, 30, 14, GRAY, false, 'CENTER');
+  const consultantName = client.consultantName || "Consultor";
+  addText(coverId, `Proposta gerada por ${consultantName} em ${dateStr}`, 0, 260, 720, 30, 14, GRAY, false, 'CENTER');
+  addText(coverId, "Proposta válida por 30 dias a partir da data de emissão.", 0, 290, 720, 30, 12, GRAY, false, 'CENTER');
 
   requests.push({
     createShape: {
@@ -482,7 +487,7 @@ export const createGoogleSlidePresentation = async (
   }
   
   // Add Subtitle (More spacing)
-  addText(valuesId, subtitleText, 40, 70, 640, 30, 14, GREEN, true, 'START', 'MIDDLE');
+  addText(valuesId, subtitleText, 40, 70, 640, 30, 14, GREEN, true, 'CENTER', 'MIDDLE');
 
   // Data Preparation
   const totalStudents = calculations.totalStudents;
@@ -760,7 +765,7 @@ export const createGoogleSlidePresentation = async (
       }
   }
   
-  footnotes.push("Proposta válida por 30 dias a partir da data de emissão.");
+  // Removed "Proposta válida..." from here as it moved to cover
 
   addText(valuesId, footnotes.join('\n'), 40, 280, 640, 100, 8, GRAY);
 
