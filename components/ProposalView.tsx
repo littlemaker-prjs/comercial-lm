@@ -217,12 +217,27 @@ export const ProposalView: React.FC<ProposalViewProps> = ({ appState, setAppStat
             const result = await auth.signInWithPopup(provider);
             const credential = result.credential as any; // Cast to access accessToken
             accessToken = credential?.accessToken;
+
+            if (accessToken) {
+                sessionStorage.setItem('googleAccessToken', accessToken);
+            }
         }
 
         if (!accessToken) throw new Error("Não foi possível obter permissão de acesso.");
 
         // 2. Call Generator Service
-        const editUrl = await createGoogleSlidePresentation(accessToken, appState, calculationData);
+        // Use user.displayName if available, otherwise fallback to existing consultantName or "Consultor"
+        const consultantName = user?.displayName || appState.client.consultantName || "Consultor";
+        
+        const stateToPass = {
+            ...appState,
+            client: {
+                ...appState.client,
+                consultantName: consultantName
+            }
+        };
+
+        const editUrl = await createGoogleSlidePresentation(accessToken, stateToPass, calculationData);
         
         // 3. Open the new presentation
         window.open(editUrl, '_blank');

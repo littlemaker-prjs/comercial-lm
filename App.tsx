@@ -25,7 +25,9 @@ function App() {
   const [firebaseUser, setFirebaseUser] = useState<firebase.User | null>(null);
   const [offlineUser, setOfflineUser] = useState<any | null>(null);
   const [authLoading, setAuthLoading] = useState(true);
-  const [googleAccessToken, setGoogleAccessToken] = useState<string | null>(null);
+  const [googleAccessToken, setGoogleAccessToken] = useState<string | null>(() => {
+      return sessionStorage.getItem('googleAccessToken');
+  });
   
   // Master Role State
   const [isMaster, setIsMaster] = useState(false);
