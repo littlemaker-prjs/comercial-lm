@@ -1,13 +1,16 @@
 
 import React, { useState, useEffect } from 'react';
 import { auth, googleProvider } from '../firebase';
+import firebase from 'firebase/compat/app';
+import 'firebase/compat/auth';
 import { AlertCircle, Loader2, WifiOff, ArrowRight } from 'lucide-react';
 
 interface LoginScreenProps {
   onOfflineLogin: (email: string) => void;
+  onGoogleLoginSuccess: (token: string) => void;
 }
 
-export const LoginScreen: React.FC<LoginScreenProps> = ({ onOfflineLogin }) => {
+export const LoginScreen: React.FC<LoginScreenProps> = ({ onOfflineLogin, onGoogleLoginSuccess }) => {
   const [error, setError] = useState('');
   const [detailedError, setDetailedError] = useState('');
   const [loading, setLoading] = useState(false);
@@ -23,8 +26,16 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onOfflineLogin }) => {
     setLoading(true);
 
     try {
-      const result = await auth.signInWithPopup(googleProvider);
+      // Create a new provider instance to add scopes
+      const provider = new firebase.auth.GoogleAuthProvider();
+      provider.addScope('https://www.googleapis.com/auth/presentations');
+      provider.addScope('https://www.googleapis.com/auth/drive.file');
+      provider.setCustomParameters({ prompt: 'select_account' });
+
+      const result = await auth.signInWithPopup(provider);
       const user = result.user;
+      const credential = result.credential as any;
+      const accessToken = credential?.accessToken;
 
       if (!user) {
         throw new Error('Não foi possível obter os dados do usuário.');
@@ -36,6 +47,11 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onOfflineLogin }) => {
         setLoading(false);
         return;
       }
+
+      if (accessToken) {
+          onGoogleLoginSuccess(accessToken);
+      }
+
     } catch (err: any) {
       console.warn("Authentication result:", err);
       

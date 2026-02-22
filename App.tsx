@@ -25,6 +25,7 @@ function App() {
   const [firebaseUser, setFirebaseUser] = useState<firebase.User | null>(null);
   const [offlineUser, setOfflineUser] = useState<any | null>(null);
   const [authLoading, setAuthLoading] = useState(true);
+  const [googleAccessToken, setGoogleAccessToken] = useState<string | null>(null);
   
   // Master Role State
   const [isMaster, setIsMaster] = useState(false);
@@ -260,7 +261,7 @@ function App() {
   );
 
   if (authLoading) return <div className="h-screen flex items-center justify-center bg-slate-50"><Loader2 className="w-10 h-10 text-[#71477A] animate-spin" /></div>;
-  if (!activeUser) return <LoginScreen onOfflineLogin={handleOfflineLogin} />;
+  if (!activeUser) return <LoginScreen onOfflineLogin={handleOfflineLogin} onGoogleLoginSuccess={setGoogleAccessToken} />;
   
   if (viewMode === 'dashboard') {
       return (
@@ -330,7 +331,7 @@ function App() {
       <main className="flex-1 overflow-hidden relative">
         {currentStep === Step.START && <StartScreen appState={appState} setAppState={setAppState} onNext={handleStartNext} />}
         {currentStep === Step.WORKSHOPS && <WorkshopPanel appState={appState} setAppState={setAppState} onNext={() => setCurrentStep(Step.PROPOSAL)} />}
-        {currentStep === Step.PROPOSAL && <ProposalView appState={appState} setAppState={setAppState} onSave={handleSaveProposal} isSaving={isSaving} user={activeUser} isMaster={isMaster} />}
+        {currentStep === Step.PROPOSAL && <ProposalView appState={appState} setAppState={setAppState} onSave={handleSaveProposal} isSaving={isSaving} user={activeUser} isMaster={isMaster} googleAccessToken={googleAccessToken} />}
       </main>
     </div>
   );

@@ -252,7 +252,7 @@ export const createGoogleSlidePresentation = async (
   requests.push({ updateShapeProperties: { objectId: `footer_${coverId}`, shapeProperties: { shapeBackgroundFill: { solidFill: { color: { rgbColor: GREEN } } }, outline: { propertyState: 'NOT_RENDERED' } }, fields: 'shapeBackgroundFill,outline' } });
 
 
-  // --- SLIDE 2: ESCOPO DO PROJETO (NOVO) ---
+  // --- SLIDE 2: INFRAESTRUTURA PROPOSTA (NOVO) ---
   // Gather contents
   const scopeContents: any[] = [];
   ['infantil', 'maker', 'midia'].forEach(cat => {
@@ -268,37 +268,43 @@ export const createGoogleSlidePresentation = async (
       }
   });
 
-  if (scopeContents.length > 0) {
-      const scopeId = addSlide();
-      
-      // Header Bar Reuse
-      requests.push({
-        createShape: {
-            objectId: `header_${scopeId}`,
-            shapeType: 'RECTANGLE',
-            elementProperties: {
-                pageObjectId: scopeId,
-                size: { width: { magnitude: 720, unit: 'PT' }, height: { magnitude: 50, unit: 'PT' } }, 
-                transform: { scaleX: 1, scaleY: 1, translateX: 0, translateY: 0, unit: 'PT' }
-            }
+  // Always create the slide
+  const scopeId = addSlide();
+  
+  // Header Bar Reuse
+  requests.push({
+    createShape: {
+        objectId: `header_${scopeId}`,
+        shapeType: 'RECTANGLE',
+        elementProperties: {
+            pageObjectId: scopeId,
+            size: { width: { magnitude: 720, unit: 'PT' }, height: { magnitude: 50, unit: 'PT' } }, 
+            transform: { scaleX: 1, scaleY: 1, translateX: 0, translateY: 0, unit: 'PT' }
         }
-      });
-      requests.push({ updateShapeProperties: { objectId: `header_${scopeId}`, shapeProperties: { shapeBackgroundFill: { solidFill: { color: { rgbColor: PURPLE } } }, outline: { propertyState: 'NOT_RENDERED' } }, fields: 'shapeBackgroundFill,outline' } });
-      addImage(scopeId, LOGO_URL, 20, 10, 100, 30);
-      
-      // Title in Header
-      addText(scopeId, "Infraestrutura Proposta", 140, 15, 560, 20, 18, WHITE, true, 'END', 'MIDDLE');
+    }
+  });
+  requests.push({ updateShapeProperties: { objectId: `header_${scopeId}`, shapeProperties: { shapeBackgroundFill: { solidFill: { color: { rgbColor: PURPLE } } }, outline: { propertyState: 'NOT_RENDERED' } }, fields: 'shapeBackgroundFill,outline' } });
+  addImage(scopeId, LOGO_URL, 20, 10, 100, 30);
+  
+  // Title in Header
+  addText(scopeId, "Infraestrutura Proposta", 140, 15, 560, 20, 18, WHITE, true, 'END', 'MIDDLE');
 
+  if (scopeContents.length > 0) {
       // Columns Configuration
-      const margin = 30;
       const gutter = 12;
       const colWidth = 212;
       const cardY = 96;
       const cardHeight = 236;
       const headerHeight = 45;
 
+      // Dynamic Centering Logic
+      const numCols = scopeContents.length;
+      const totalContentWidth = (numCols * colWidth) + ((numCols - 1) * gutter);
+      const pageWidth = 720;
+      const startX = (pageWidth - totalContentWidth) / 2;
+
       scopeContents.forEach((content, idx) => {
-          const xPos = margin + (idx * (colWidth + gutter));
+          const xPos = startX + (idx * (colWidth + gutter));
           
           // --- Card Body (Gray) ---
           // Goal: Straight Top, Rounded Bottom (Small Radius 20pt)
@@ -417,21 +423,24 @@ export const createGoogleSlidePresentation = async (
             }
           });
       });
-
-      // Footer
-      requests.push({
-        createShape: {
-            objectId: `footer_${scopeId}`,
-            shapeType: 'RECTANGLE',
-            elementProperties: {
-                pageObjectId: scopeId,
-                size: { width: { magnitude: 720, unit: 'PT' }, height: { magnitude: 15, unit: 'PT' } },
-                transform: { scaleX: 1, scaleY: 1, translateX: 0, translateY: 390, unit: 'PT' }
-            }
-        }
-      });
-      requests.push({ updateShapeProperties: { objectId: `footer_${scopeId}`, shapeProperties: { shapeBackgroundFill: { solidFill: { color: { rgbColor: GREEN } } }, outline: { propertyState: 'NOT_RENDERED' } }, fields: 'shapeBackgroundFill,outline' } });
+  } else {
+      // Empty State Message
+      addText(scopeId, "Nenhuma infraestrutura será fornecida nesta proposta.", 60, 180, 600, 40, 16, BLACK, true, 'CENTER', 'MIDDLE');
   }
+
+  // Footer
+  requests.push({
+    createShape: {
+        objectId: `footer_${scopeId}`,
+        shapeType: 'RECTANGLE',
+        elementProperties: {
+            pageObjectId: scopeId,
+            size: { width: { magnitude: 720, unit: 'PT' }, height: { magnitude: 15, unit: 'PT' } },
+            transform: { scaleX: 1, scaleY: 1, translateX: 0, translateY: 390, unit: 'PT' }
+        }
+    }
+  });
+  requests.push({ updateShapeProperties: { objectId: `footer_${scopeId}`, shapeProperties: { shapeBackgroundFill: { solidFill: { color: { rgbColor: GREEN } } }, outline: { propertyState: 'NOT_RENDERED' } }, fields: 'shapeBackgroundFill,outline' } });
 
 
   // --- SLIDE 3: VALORES (Condições Comerciais) ---
@@ -455,6 +464,26 @@ export const createGoogleSlidePresentation = async (
   // Title in Header
   addText(valuesId, "Condições Comerciais", 140, 15, 560, 20, 18, WHITE, true, 'END', 'MIDDLE');
 
+  // Subtitle Logic
+  let subtitleText = "";
+  const comm = calculations.commercial;
+  if (comm.contractDuration === 1) {
+      subtitleText = "Contrato de 1 ano";
+  } else if (comm.contractDuration === 3) {
+      if (!comm.useMarketplace) {
+          subtitleText = "Contrato de 3 anos com bônus no Material do Aluno";
+      } else {
+          if (comm.applyInfraBonus) {
+              subtitleText = "Contrato de 3 anos com bônus na Infraestrutura e venda pelo Marketplace";
+          } else {
+              subtitleText = "Contrato de 3 anos com bônus no Material do Aluno e venda pelo Marketplace";
+          }
+      }
+  }
+  
+  // Add Subtitle
+  addText(valuesId, subtitleText, 40, 60, 640, 30, 14, GREEN, true, 'START', 'MIDDLE');
+
   // Data Preparation
   const totalStudents = calculations.totalStudents;
   const materialYear = calculations.appliedRatePerStudentYear;
@@ -468,7 +497,7 @@ export const createGoogleSlidePresentation = async (
 
   // --- LEFT TABLE (Material) ---
   const leftX = 40;
-  const leftY = 95;
+  const leftY = 100; // Moved down from 95
   const leftW = 300;
   const headerH = 20;
   const rowH = 25;
@@ -569,17 +598,19 @@ export const createGoogleSlidePresentation = async (
       addText(valuesId, row.value, leftX + (leftW / 2), y, (leftW / 2) - 10, rowH, row.highlight ? 11 : 10, row.color || BLACK, row.bold, 'END', 'MIDDLE');
   });
   
-  // Bonus Outside
-  const bonusY = leftBodyY + leftBodyH + 5;
-  const bonusRow = { label: "Bônus Fidelidade (Desc.)", value: calculations.materialDiscountAmount > 0 ? "- " + formatCurrency(calculations.materialDiscountAmount) : "-", bold: false, color: GREEN };
-  addText(valuesId, bonusRow.label, leftX + 10, bonusY, leftW / 2, rowH, 9, BLACK, false, 'START', 'MIDDLE');
-  addText(valuesId, bonusRow.value, leftX + (leftW / 2), bonusY, (leftW / 2) - 10, rowH, 10, GREEN, false, 'END', 'MIDDLE');
+  // Bonus Outside (Conditional)
+  if (calculations.materialDiscountAmount > 0) {
+      const bonusY = leftBodyY + leftBodyH + 5;
+      const bonusRow = { label: "Bônus Fidelidade (Desc.)", value: "- " + formatCurrency(calculations.materialDiscountAmount), bold: false, color: GREEN };
+      addText(valuesId, bonusRow.label, leftX + 10, bonusY, leftW / 2, rowH, 9, BLACK, false, 'START', 'MIDDLE');
+      addText(valuesId, bonusRow.value, leftX + (leftW / 2), bonusY, (leftW / 2) - 10, rowH, 10, GREEN, false, 'END', 'MIDDLE');
+  }
 
 
   // --- RIGHT TABLE (Infra) ---
   if (calculations.hasInfraItems) {
       const rightX = 370;
-      const rightY = 95;
+      const rightY = 100; // Moved down from 95
       const rightW = 320;
       
       // Composite Header (Green)
@@ -613,9 +644,28 @@ export const createGoogleSlidePresentation = async (
 
       addText(valuesId, "Infraestrutura (Ambientação e Ferramentas)", rightX, rightY, rightW, 20, 10, WHITE, true, 'CENTER', 'MIDDLE');
 
+      // Rows
+      interface RowItem {
+          label: string;
+          value: string;
+          bold: boolean;
+          color: any;
+          highlight?: boolean;
+      }
+      const rightRows: RowItem[] = [
+          { label: "Investimento Infraestrutura ***", value: formatCurrency(infraTotal), bold: false, color: BLACK }
+      ];
+      
+      if (bonus > 0) {
+          rightRows.push({ label: "Desconto bônus fidelidade **", value: "- " + formatCurrency(bonus), bold: false, color: GREEN });
+      }
+      
+      rightRows.push({ label: "Total Final (Único)", value: formatCurrency(infraFinal), bold: true, color: BLACK });
+      rightRows.push({ label: "Parcelamento (3x)", value: formatCurrency(parcelas), bold: true, highlight: true, color: BLACK });
+
       // Composite Body (Gray)
-      // Rows: Inv Infra, Desc Bonus, Total, Parcelamento. (4 rows * 25 = 100pt).
-      const rightBodyH = 100;
+      // Rows: Inv Infra, [Desc Bonus], Total, Parcelamento. 
+      const rightBodyH = rightRows.length * 25;
       const rightBodyY = rightY + 20;
 
       // 1. Bottom Round Rect
@@ -648,14 +698,6 @@ export const createGoogleSlidePresentation = async (
           }
       });
       requests.push({ updateShapeProperties: { objectId: rightBodyMainId, shapeProperties: { shapeBackgroundFill: { solidFill: { color: { rgbColor: {red: 0.95, green: 0.95, blue: 0.95} } } }, outline: { propertyState: 'NOT_RENDERED' } }, fields: 'shapeBackgroundFill,outline' } });
-
-      // Rows
-      const rightRows = [
-          { label: "Investimento Infraestrutura ***", value: formatCurrency(infraTotal), bold: false, color: BLACK },
-          { label: "Desconto bônus fidelidade **", value: bonus > 0 ? "- " + formatCurrency(bonus) : "-", bold: false, color: GREEN },
-          { label: "Total Final (Único)", value: formatCurrency(infraFinal), bold: true, color: BLACK },
-          { label: "Parcelamento (3x)", value: formatCurrency(parcelas), bold: true, highlight: true, color: BLACK }
-      ];
 
       rightRows.forEach((row, idx) => {
           const y = rightBodyY + (idx * 25);
@@ -696,7 +738,7 @@ export const createGoogleSlidePresentation = async (
   }
   footnotes.push("Proposta válida por 30 dias a partir da data de emissão.");
 
-  addText(valuesId, footnotes.join('\n'), 40, 250, 640, 100, 8, GRAY);
+  addText(valuesId, footnotes.join('\n'), 40, 260, 640, 100, 8, GRAY);
 
   requests.push({
     createShape: {

@@ -15,10 +15,11 @@ interface ProposalViewProps {
   onSave?: () => void;
   isSaving?: boolean;
   user?: any;
-  isMaster: boolean; 
+  isMaster: boolean;
+  googleAccessToken?: string | null;
 }
 
-export const ProposalView: React.FC<ProposalViewProps> = ({ appState, setAppState, onSave, isSaving, user, isMaster }) => {
+export const ProposalView: React.FC<ProposalViewProps> = ({ appState, setAppState, onSave, isSaving, user, isMaster, googleAccessToken }) => {
   const { settings } = useSettings();
   const { selectedInfraIds, regionId, commercial } = appState;
   const [editingField, setEditingField] = useState<string | null>(null);
@@ -203,16 +204,20 @@ export const ProposalView: React.FC<ProposalViewProps> = ({ appState, setAppStat
   const handleGoogleSlidesGeneration = async () => {
     setIsGeneratingSlides(true);
     try {
-        // 1. We need an Access Token. We force a re-auth/popup to grant scopes if needed.
-        // Add scopes for Drive/Slides
-        const provider = new firebase.auth.GoogleAuthProvider();
-        provider.addScope('https://www.googleapis.com/auth/presentations');
-        provider.addScope('https://www.googleapis.com/auth/drive.file');
-        
-        // This will trigger a popup asking for permission
-        const result = await auth.signInWithPopup(provider);
-        const credential = result.credential as any; // Cast to access accessToken
-        const accessToken = credential?.accessToken;
+        let accessToken = googleAccessToken;
+
+        if (!accessToken) {
+            // 1. We need an Access Token. We force a re-auth/popup to grant scopes if needed.
+            // Add scopes for Drive/Slides
+            const provider = new firebase.auth.GoogleAuthProvider();
+            provider.addScope('https://www.googleapis.com/auth/presentations');
+            provider.addScope('https://www.googleapis.com/auth/drive.file');
+            
+            // This will trigger a popup asking for permission
+            const result = await auth.signInWithPopup(provider);
+            const credential = result.credential as any; // Cast to access accessToken
+            accessToken = credential?.accessToken;
+        }
 
         if (!accessToken) throw new Error("Não foi possível obter permissão de acesso.");
 
