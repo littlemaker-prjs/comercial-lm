@@ -481,8 +481,8 @@ export const createGoogleSlidePresentation = async (
       }
   }
   
-  // Add Subtitle
-  addText(valuesId, subtitleText, 40, 60, 640, 30, 14, GREEN, true, 'START', 'MIDDLE');
+  // Add Subtitle (More spacing)
+  addText(valuesId, subtitleText, 40, 70, 640, 30, 14, GREEN, true, 'START', 'MIDDLE');
 
   // Data Preparation
   const totalStudents = calculations.totalStudents;
@@ -496,9 +496,11 @@ export const createGoogleSlidePresentation = async (
   const formatCurrency = (val: number) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(val);
 
   // --- LEFT TABLE (Material) ---
-  const leftX = 40;
-  const leftY = 100; // Moved down from 95
+  // If no infra, center this table.
+  // Standard Left X = 40. Center X = (720 - 300) / 2 = 210.
   const leftW = 300;
+  const leftX = calculations.hasInfraItems ? 40 : 210;
+  const leftY = 110; // Moved down further
   const headerH = 20;
   const rowH = 25;
   
@@ -610,7 +612,7 @@ export const createGoogleSlidePresentation = async (
   // --- RIGHT TABLE (Infra) ---
   if (calculations.hasInfraItems) {
       const rightX = 370;
-      const rightY = 100; // Moved down from 95
+      const rightY = 110; // Moved down further
       const rightW = 320;
       
       // Composite Header (Green)
@@ -652,12 +654,19 @@ export const createGoogleSlidePresentation = async (
           color: any;
           highlight?: boolean;
       }
+      
+      // Determine asterisks for Infra
+      // If bonus exists (**) -> infra is ***
+      // If bonus DOES NOT exist -> infra is ** (since material is *)
+      const infraAsterisk = bonus > 0 ? "***" : "**";
+      const bonusAsterisk = "**";
+
       const rightRows: RowItem[] = [
-          { label: "Investimento Infraestrutura ***", value: formatCurrency(infraTotal), bold: false, color: BLACK }
+          { label: `Investimento Infraestrutura ${infraAsterisk}`, value: formatCurrency(infraTotal), bold: false, color: BLACK }
       ];
       
       if (bonus > 0) {
-          rightRows.push({ label: "Desconto bônus fidelidade **", value: "- " + formatCurrency(bonus), bold: false, color: GREEN });
+          rightRows.push({ label: `Desconto bônus fidelidade ${bonusAsterisk}`, value: "- " + formatCurrency(bonus), bold: false, color: GREEN });
       }
       
       rightRows.push({ label: "Total Final (Único)", value: formatCurrency(infraFinal), bold: true, color: BLACK });
@@ -724,21 +733,36 @@ export const createGoogleSlidePresentation = async (
 
   // Footnotes
   const footnotes = [];
+  
+  // Logic for Material Footnotes (*)
+  let materialFootnote = "* Desconto para contrato de 3 anos aplicado no valor do material do aluno ao longo de todo o contrato.";
   if (calculations.commercial.contractDuration === 3) {
-      footnotes.push("* Desconto para contrato de 3 anos aplicado no valor do material do aluno ao longo de todo o contrato.");
-  }
-  if (calculations.commercial.useMarketplace) {
+      if (calculations.commercial.useMarketplace) {
+          // Merge logic
+          materialFootnote += " Margem operacional do parceiro de market place inclusa no valor.";
+          footnotes.push(materialFootnote);
+      } else {
+          footnotes.push(materialFootnote);
+      }
+  } else if (calculations.commercial.useMarketplace) {
+      // Only marketplace (1 year contract?)
       footnotes.push("* Margem operacional do parceiro de market place inclusa no valor.");
   }
-  if (calculations.commercial.applyInfraBonus && calculations.hasInfraItems) {
-      footnotes.push("** Desconto para contrato de 3 anos aplicado no valor da infraestrutura. É necessário comprovar quantitativo de aluno atual equivalente à proposta.");
-  }
+
+  // Logic for Infra Footnotes (** and ***)
   if (calculations.hasInfraItems) {
-      footnotes.push(`*** Região de entrega considerada: ${appState.regionId || 'Padrão'}`);
+      if (calculations.commercial.applyInfraBonus) {
+          footnotes.push("** Desconto para contrato de 3 anos aplicado no valor da infraestrutura. É necessário comprovar quantitativo de aluno atual equivalente à proposta.");
+          footnotes.push(`*** Região de entrega considerada: ${appState.regionId || 'Padrão'}`);
+      } else {
+          // If no bonus, Infra Investment becomes ** (shifted from ***)
+          footnotes.push(`** Região de entrega considerada: ${appState.regionId || 'Padrão'}`);
+      }
   }
+  
   footnotes.push("Proposta válida por 30 dias a partir da data de emissão.");
 
-  addText(valuesId, footnotes.join('\n'), 40, 260, 640, 100, 8, GRAY);
+  addText(valuesId, footnotes.join('\n'), 40, 280, 640, 100, 8, GRAY);
 
   requests.push({
     createShape: {

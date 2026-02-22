@@ -54,7 +54,7 @@ export const PROPOSAL_TEXTS = {
     ]
   },
   midia_com_computadores: {
-    title: "Sala de Mídia Completa com Computadores",
+    title: "Sala de Mídia Completa com Computadores - {{num}} alunos",
     subtitle: "Ambientação de sala temática completa",
     items: [
       "Conjunto de ferramentas Maker completa",
