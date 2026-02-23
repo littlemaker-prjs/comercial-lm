@@ -50,7 +50,7 @@ const getProposalText = (category: CategoryType, selectedIds: string[], calculat
     const num = furnitureCap || 0;
     const numf = toolCap || 0;
     
-    const replacePlaceholders = (text: string) => text.replace('{{num}}', num.toString()).replace('{{numf}}', numf.toString());
+    const replacePlaceholders = (text: string) => text.replace(/{{num}}/g, num.toString()).replace(/{{numf}}/g, numf.toString());
 
     let t: any = null;
 
@@ -491,12 +491,24 @@ export const createGoogleSlidePresentation = async (
 
   // Data Preparation
   const totalStudents = calculations.totalStudents;
-  const materialYear = calculations.appliedRatePerStudentYear;
+  const materialYear = calculations.finalMaterialRatePerYear; // Use final rate (discounted)
   const materialMonth = calculations.finalMaterialRatePerMonth;
   const infraTotal = calculations.totalInfra;
   const bonus = calculations.infraDiscountAmount;
   const infraFinal = calculations.totalInfraNet;
   const parcelas = calculations.infraInstallment;
+
+  // Dynamic Asterisk Logic (Replicated from ProposalView)
+  const showMaterialNote = comm.useMarketplace || (comm.contractDuration === 3 && !comm.applyInfraBonus);
+  const showInfraBonusNote = comm.contractDuration === 3 && comm.applyInfraBonus && calculations.hasInfraItems && comm.useMarketplace;
+  const showRegionNote = calculations.hasInfraItems;
+
+  let symbolCounter = 1;
+  const getNextSymbol = () => '*'.repeat(symbolCounter++);
+
+  const materialSymbol = showMaterialNote ? getNextSymbol() : '';
+  const regionSymbol = showRegionNote ? getNextSymbol() : '';
+  const infraBonusSymbol = showInfraBonusNote ? getNextSymbol() : '';
 
   const formatCurrency = (val: number) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(val);
 
@@ -579,8 +591,8 @@ export const createGoogleSlidePresentation = async (
   // Rows
   const leftRows = [
       { label: "Total de Alunos", value: totalStudents.toString(), bold: false, color: BLACK },
-      { label: "Investimento Aluno/Ano *", value: formatCurrency(materialYear), bold: false, color: BLACK },
-      { label: "Investimento Aluno/Mês *", value: formatCurrency(materialMonth), bold: true, highlight: true, color: BLACK }
+      { label: `Investimento Aluno/Ano ${materialSymbol}`, value: formatCurrency(materialYear), bold: false, color: BLACK },
+      { label: `Investimento Aluno/Mês ${materialSymbol}`, value: formatCurrency(materialMonth), bold: true, highlight: true, color: BLACK }
   ];
 
   leftRows.forEach((row, idx) => {
@@ -608,7 +620,7 @@ export const createGoogleSlidePresentation = async (
   // Bonus Outside (Conditional)
   if (calculations.materialDiscountAmount > 0) {
       const bonusY = leftBodyY + leftBodyH + 5;
-      const bonusRow = { label: "Bônus Fidelidade (Desc.)", value: "- " + formatCurrency(calculations.materialDiscountAmount), bold: false, color: GREEN };
+      const bonusRow = { label: calculations.materialBonusText, value: "- " + formatCurrency(calculations.materialDiscountAmount), bold: false, color: GREEN };
       addText(valuesId, bonusRow.label, leftX + 10, bonusY, leftW / 2, rowH, 9, BLACK, false, 'START', 'MIDDLE');
       addText(valuesId, bonusRow.value, leftX + (leftW / 2), bonusY, (leftW / 2) - 10, rowH, 10, GREEN, false, 'END', 'MIDDLE');
   }
@@ -661,17 +673,14 @@ export const createGoogleSlidePresentation = async (
       }
       
       // Determine asterisks for Infra
-      // If bonus exists (**) -> infra is ***
-      // If bonus DOES NOT exist -> infra is ** (since material is *)
-      const infraAsterisk = bonus > 0 ? "***" : "**";
-      const bonusAsterisk = "**";
-
+      // Use dynamic symbols
+      
       const rightRows: RowItem[] = [
-          { label: `Investimento Infraestrutura ${infraAsterisk}`, value: formatCurrency(infraTotal), bold: false, color: BLACK }
+          { label: `Investimento Infraestrutura ${regionSymbol}`, value: formatCurrency(infraTotal), bold: false, color: BLACK }
       ];
       
       if (bonus > 0) {
-          rightRows.push({ label: `Desconto bônus fidelidade ${bonusAsterisk}`, value: "- " + formatCurrency(bonus), bold: false, color: GREEN });
+          rightRows.push({ label: `${calculations.infraBonusText} ${infraBonusSymbol}`, value: "- " + formatCurrency(bonus), bold: false, color: GREEN });
       }
       
       rightRows.push({ label: "Total Final (Único)", value: formatCurrency(infraFinal), bold: true, color: BLACK });
@@ -739,30 +748,24 @@ export const createGoogleSlidePresentation = async (
   // Footnotes
   const footnotes = [];
   
-  // Logic for Material Footnotes (*)
-  let materialFootnote = "* Desconto para contrato de 3 anos aplicado no valor do material do aluno ao longo de todo o contrato.";
-  if (calculations.commercial.contractDuration === 3) {
-      if (calculations.commercial.useMarketplace) {
-          // Merge logic
-          materialFootnote += " Margem operacional do parceiro de market place inclusa no valor.";
-          footnotes.push(materialFootnote);
+  if (showMaterialNote) {
+      let text = "";
+      if (comm.useMarketplace && (comm.contractDuration === 3 && !comm.applyInfraBonus)) {
+          text = "Margem operacional do parceiro de market place inclusa e desconto para contrato de 3 anos aplicado no valor.";
+      } else if (comm.useMarketplace) {
+          text = "Margem operacional do parceiro de market place inclusa no valor.";
       } else {
-          footnotes.push(materialFootnote);
+          text = "Desconto para contrato de 3 anos aplicado no valor do material do aluno ao longo de todo o contrato.";
       }
-  } else if (calculations.commercial.useMarketplace) {
-      // Only marketplace (1 year contract?)
-      footnotes.push("* Margem operacional do parceiro de market place inclusa no valor.");
+      footnotes.push(`${materialSymbol} ${text}`);
   }
 
-  // Logic for Infra Footnotes (** and ***)
-  if (calculations.hasInfraItems) {
-      if (calculations.commercial.applyInfraBonus) {
-          footnotes.push("** Desconto para contrato de 3 anos aplicado no valor da infraestrutura. É necessário comprovar quantitativo de aluno atual equivalente à proposta.");
-          footnotes.push(`*** Região de entrega considerada: ${appState.regionId || 'Padrão'}`);
-      } else {
-          // If no bonus, Infra Investment becomes ** (shifted from ***)
-          footnotes.push(`** Região de entrega considerada: ${appState.regionId || 'Padrão'}`);
-      }
+  if (showRegionNote) {
+      footnotes.push(`${regionSymbol} Região de entrega considerada: ${appState.regionId || 'Padrão'}`);
+  }
+
+  if (showInfraBonusNote) {
+      footnotes.push(`${infraBonusSymbol} Desconto para contrato de 3 anos aplicado no valor da infraestrutura. É necessário comprovar quantitativo de aluno atual equivalente à proposta.`);
   }
   
   // Removed "Proposta válida..." from here as it moved to cover

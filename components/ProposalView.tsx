@@ -147,6 +147,14 @@ export const ProposalView: React.FC<ProposalViewProps> = ({ appState, setAppStat
   const totalInfraNet = totalInfraGross - infraDiscountAmount;
   const infraInstallment = totalInfraNet / 3;
 
+  // Bonus Text Formatting
+  const materialBonusPercent = (settings.variables.materialBonus * 100).toFixed(0);
+  const materialBonusMonths = (settings.variables.materialBonus * 36).toFixed(0);
+  const materialBonusText = `Bônus fidelidade desc ${materialBonusPercent}% (${materialBonusMonths} meses grátis)`;
+
+  const infraBonusPercent = (settings.variables.infraBonus * 100).toFixed(0);
+  const infraBonusText = `Bônus fidelidade desc ${infraBonusPercent}%`;
+
   // Bundle Calculations for passing to API
   const calculationData = {
       totalStudents: commercial.totalStudents,
@@ -155,12 +163,15 @@ export const ProposalView: React.FC<ProposalViewProps> = ({ appState, setAppStat
       // Added fields for consistency
       appliedRatePerStudentYear,
       finalMaterialRatePerMonth,
+      finalMaterialRatePerYear, // Added for Slides
       materialDiscountAmount,
       infraDiscountAmount,
       totalInfraNet,
       infraInstallment,
       commercial: appState.commercial, // Pass full commercial state for flags
-      hasInfraItems
+      hasInfraItems,
+      materialBonusText, // Added for Slides
+      infraBonusText // Added for Slides
   };
 
   // --- CAPACITY HELPERS ---
@@ -197,7 +208,7 @@ export const ProposalView: React.FC<ProposalViewProps> = ({ appState, setAppStat
   };
 
   const replacePlaceholders = (text: string, num: number, numf: number) => {
-    return text.replace('{{num}}', num.toString()).replace('{{numf}}', numf.toString());
+    return text.replace(/{{num}}/g, num.toString()).replace(/{{numf}}/g, numf.toString());
   };
 
   // --- GOOGLE SLIDES GENERATION ---
@@ -319,15 +330,20 @@ export const ProposalView: React.FC<ProposalViewProps> = ({ appState, setAppStat
   const hasMaker = selectedItems.some(i => i.category === 'maker');
   const hasMidia = selectedItems.some(i => i.category === 'midia');
 
-  const materialSymbol = "*";
-  const infraBonusSymbol = "**";
-  const regionSymbol = "***";
-
+  // Dynamic Asterisk Logic
   const materialHasMp = commercial.useMarketplace;
   const materialHasDiscount = commercial.contractDuration === 3 && !commercial.applyInfraBonus;
   const showMaterialNote = materialHasMp || materialHasDiscount;
+  
   const showInfraBonusNote = commercial.contractDuration === 3 && commercial.applyInfraBonus && hasInfraItems && commercial.useMarketplace;
   const showRegionNote = hasInfraItems;
+
+  let symbolCounter = 1;
+  const getNextSymbol = () => '*'.repeat(symbolCounter++);
+
+  const materialSymbol = showMaterialNote ? getNextSymbol() : '';
+  const regionSymbol = showRegionNote ? getNextSymbol() : '';
+  const infraBonusSymbol = showInfraBonusNote ? getNextSymbol() : '';
   
   const renderScopeItem = (title: string, subtitle: string, items: string[]) => (
       <div className="mb-6 break-inside-avoid">
@@ -340,8 +356,13 @@ export const ProposalView: React.FC<ProposalViewProps> = ({ appState, setAppStat
   );
 
   const renderCarrinhoText = () => {
+      const caps = calculateCapacity('infantil');
       const t = PROPOSAL_TEXTS.infantil_carrinho;
-      return renderScopeItem(t.title, t.subtitle, t.items);
+      return renderScopeItem(
+          replacePlaceholders(t.title, caps.num, caps.numf),
+          t.subtitle,
+          t.items.map(i => replacePlaceholders(i, caps.num, caps.numf))
+      );
   };
 
   const renderInfantilOficinaText = () => {
@@ -470,7 +491,7 @@ export const ProposalView: React.FC<ProposalViewProps> = ({ appState, setAppStat
                                 onUpdate={(val) => updateOverride('materialPricePerYear', val)}
                             />
                         ) : (
-                            appliedRatePerStudentYear.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
+                            finalMaterialRatePerYear.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
                         )}
                     </div>
 
@@ -484,7 +505,7 @@ export const ProposalView: React.FC<ProposalViewProps> = ({ appState, setAppStat
                     {materialDiscountAmount > 0 && (
                         <>
                             <div className="py-2 px-4 font-medium text-slate-500 bg-white flex items-center gap-2 group">
-                                Bônus Fidelidade (Desc.)
+                                {materialBonusText}
                                 {isMaster && (
                                     <button onClick={() => setEditingField('materialBonus')} className="opacity-0 group-hover:opacity-100 transition-opacity p-1 hover:bg-slate-100 rounded print:hidden">
                                         <Edit3 className="w-3 h-3 text-slate-400 hover:text-slate-600" />
@@ -540,7 +561,7 @@ export const ProposalView: React.FC<ProposalViewProps> = ({ appState, setAppStat
                         {infraDiscountAmount > 0 && (
                             <>
                                 <div className="py-2 px-4 font-medium text-slate-700 border-b border-slate-100 flex items-center gap-2 group">
-                                    Desconto do bônus fidelidade {infraBonusSymbol}
+                                    {infraBonusText} {infraBonusSymbol}
                                     {isMaster && (
                                         <button onClick={() => setEditingField('infraBonus')} className="opacity-0 group-hover:opacity-100 transition-opacity p-1 hover:bg-slate-100 rounded print:hidden">
                                             <Edit3 className="w-3 h-3 text-slate-400 hover:text-slate-600" />
