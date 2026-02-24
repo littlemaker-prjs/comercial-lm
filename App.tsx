@@ -134,7 +134,7 @@ function App() {
       setNotification({ message, type });
   };
 
-  const handleSaveProposal = async () => {
+  const handleSaveProposal = async (redirect: boolean = true) => {
     if (!activeUser) {
         showNotification('Usuário não autenticado.', 'error');
         return;
@@ -175,9 +175,11 @@ function App() {
             }
         }
         
-        setTimeout(() => {
-           setViewMode('dashboard');
-        }, 1500);
+        if (redirect) {
+            setTimeout(() => {
+               setViewMode('dashboard');
+            }, 1500);
+        }
 
     } catch (error: any) {
         console.error("Critical error while saving to Firebase:", error);
@@ -323,7 +325,7 @@ function App() {
         </div>
 
         <div className="p-4 border-t border-white/10">
-          <button onClick={handleSaveProposal} disabled={isSaving} className="w-full bg-[#8BBF56] text-white py-2 rounded-lg font-bold hover:bg-[#7aa84b] transition-colors flex items-center justify-center gap-2 text-sm shadow-inner">
+          <button onClick={() => handleSaveProposal(true)} disabled={isSaving} className="w-full bg-[#8BBF56] text-white py-2 rounded-lg font-bold hover:bg-[#7aa84b] transition-colors flex items-center justify-center gap-2 text-sm shadow-inner">
             {isSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
             {isSaving ? 'Salvando...' : 'Salvar'}
           </button>

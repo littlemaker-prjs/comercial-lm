@@ -45,6 +45,7 @@ const getProposalText = (category: CategoryType, selectedIds: string[], calculat
     if (category === 'infantil' && selectedIds.includes('infantil_carrinho')) {
         toolCap = 18; 
         if (selectedIds.includes('infantil_ferr_up_6')) toolCap += 6;
+        if (selectedIds.includes('infantil_ferr_up_12')) toolCap += 12;
     }
 
     const num = furnitureCap || 0;

@@ -308,6 +308,16 @@ export const INFRA_CATALOG: InfraItem[] = [
     isBase: true
   },
   {
+    id: 'infantil_ferr_up_12',
+    label: 'Upgrade 12 alunos',
+    category: 'infantil',
+    type: 'ferramentas',
+    price: 3000,
+    description: 'Kit extra de ferramentas infantis para +12 alunos.',
+    requiresAssembly: false,
+    isUpgrade: true
+  },
+  {
     id: 'infantil_ferr_up_6',
     label: 'Upgrade 6 alunos',
     category: 'infantil',
@@ -662,6 +672,11 @@ export const INFRA_DETAILS: Record<string, TechDetail> = {
     'infantil_ferr_up_6': {
         items: [
             { qty: 1, name: "upgrade Eletrônico infantil (6 módulos: luz, movimento e som)" }
+        ]
+    },
+    'infantil_ferr_up_12': {
+        items: [
+            { qty: 2, name: "upgrade Eletrônico infantil (6 módulos: luz, movimento e som)" }
         ]
     }
 };

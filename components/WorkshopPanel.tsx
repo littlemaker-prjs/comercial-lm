@@ -108,6 +108,8 @@ export const WorkshopPanel: React.FC<WorkshopPanelProps> = ({ appState, setAppSt
         if (category === 'infantil' && item.type === 'ferramentas') {
              if (item.isUpgrade) {
                 if (!newSelection.includes('infantil_ferr_18')) newSelection.push('infantil_ferr_18');
+                const otherUp = item.id === 'infantil_ferr_up_12' ? 'infantil_ferr_up_6' : 'infantil_ferr_up_12';
+                newSelection = newSelection.filter(id => id !== otherUp);
              }
         }
       }

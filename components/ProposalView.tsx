@@ -12,7 +12,7 @@ import 'firebase/compat/auth';
 interface ProposalViewProps {
   appState: AppState;
   setAppState: React.Dispatch<React.SetStateAction<AppState>>;
-  onSave?: () => void;
+  onSave?: (redirect?: boolean) => void;
   isSaving?: boolean;
   user?: any;
   isMaster: boolean;
@@ -203,6 +203,7 @@ export const ProposalView: React.FC<ProposalViewProps> = ({ appState, setAppStat
     if (category === 'infantil' && selectedInfraIds.includes('infantil_carrinho')) {
         toolCap = 18; 
         if (selectedInfraIds.includes('infantil_ferr_up_6')) toolCap += 6;
+        if (selectedInfraIds.includes('infantil_ferr_up_12')) toolCap += 12;
     }
     return { num: furnitureCap, numf: toolCap };
   };
@@ -215,6 +216,11 @@ export const ProposalView: React.FC<ProposalViewProps> = ({ appState, setAppStat
   const handleGoogleSlidesGeneration = async () => {
     setIsGeneratingSlides(true);
     try {
+        // Auto-save before generating slides (no redirect)
+        if (onSave) {
+            await onSave(false);
+        }
+
         let accessToken = googleAccessToken;
 
         if (!accessToken) {
@@ -487,7 +493,7 @@ export const ProposalView: React.FC<ProposalViewProps> = ({ appState, setAppStat
                         {isMaster ? (
                             <EditableCurrency 
                                 fieldId="materialPricePerYear"
-                                value={appliedRatePerStudentYear}
+                                value={finalMaterialRatePerYear}
                                 onUpdate={(val) => updateOverride('materialPricePerYear', val)}
                             />
                         ) : (
@@ -632,7 +638,7 @@ export const ProposalView: React.FC<ProposalViewProps> = ({ appState, setAppStat
           </div>
 
           <div className="text-center mt-12 text-slate-400 text-sm border-t pt-4 print:hidden">
-              <p>Esta é uma visualização simplificada. Utilize "Imprimir PDF" para salvar uma versão fiel.</p>
+              <p>Esta é uma visualização simplificada. Gere em Google Slides para salvar a opção detalhada.</p>
           </div>
 
         </div>
