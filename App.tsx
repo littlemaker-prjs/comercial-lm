@@ -2,7 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { StartScreen } from './components/StartScreen';
 import { WorkshopPanel } from './components/WorkshopPanel';
-import { InfrastructureView } from './components/InfrastructureView';
+
 import { ProposalView } from './components/ProposalView';
 import { LoginScreen } from './components/LoginScreen';
 import { Dashboard } from './components/Dashboard';
@@ -16,7 +16,7 @@ import { useSettings } from './contexts/SettingsContext';
 enum Step {
   START = 'start',
   WORKSHOPS = 'workshops',
-  INFRA = 'infra',
+
   PROPOSAL = 'proposal',
 }
 
