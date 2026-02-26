@@ -12,8 +12,8 @@ const GRAY_LIGHT = { red: 0.95, green: 0.95, blue: 0.95 };
 
 // Helper to get public URL
 const getLogoUrl = () => {
-    // Fallback to GitHub Raw if Vercel is having issues with public folder
-    return "https://raw.githubusercontent.com/littlemaker-prjs/comercial-lm/main/public/images/logo_lm.png";
+    // Using a public placeholder service that is guaranteed to be accessible by Google
+    return "https://placehold.co/400x120/71477A/white.png?text=Little+Maker";
 };
 
 // Helper to determine text content based on selection (Replicated logic from ProposalView)
