@@ -8,6 +8,13 @@ temp/
 .cache/
 .vite/
 
+# Garantir que as imagens sejam sempre rastreadas
+!public/images/*.jpg
+!public/images/*.png
+!public/images/*.jpeg
+!public/images/*.gif
+!public/images/*.svg
+
 
 
 

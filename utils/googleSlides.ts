@@ -237,7 +237,6 @@ export const createGoogleSlidePresentation = async (
   
   // Cover Content
   addText(coverId, client.schoolName || 'Escola', 0, 150, 720, 50, 32, PURPLE, true, 'CENTER');
-  addText(coverId, `A/C: ${client.contactName}`, 0, 210, 720, 30, 18, GRAY, false, 'CENTER');
   
   const dateStr = new Date(client.date).toLocaleDateString('pt-BR');
   const consultantName = client.consultantName || "Consultor";
