@@ -296,7 +296,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNewProposal, onLoadPropo
       <header className="text-white p-4 shadow-md bg-[#71477A] relative z-20">
         <div className="max-w-7xl mx-auto flex justify-between items-center">
           <div className="flex items-center gap-4">
-             <img src="https://littlemaker.com.br/logo_lm-2/" alt="Little Maker" className="h-10 w-auto" />
+             <img src="/images/logo_lm.png" alt="Little Maker" className="h-10 w-auto" />
              <h1 className="text-xl font-bold border-l border-white/30 pl-4 hidden md:block">Painel de Propostas</h1>
           </div>
           

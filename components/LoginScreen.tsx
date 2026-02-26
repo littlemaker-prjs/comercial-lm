@@ -97,7 +97,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onOfflineLogin, onGoog
   const BrandLogo = ({ className = "" }: { className?: string }) => (
     <div className={`relative overflow-hidden ${className}`}>
         <img 
-            src="https://littlemaker.com.br/logo_lm-2/"
+            src="/images/logo_lm.png"
             alt="Little Maker"
             className="w-full h-full object-contain object-center"
         />

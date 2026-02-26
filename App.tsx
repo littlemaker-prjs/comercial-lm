@@ -258,7 +258,7 @@ function App() {
 
   const BrandLogo = ({ className = "" }: { className?: string }) => (
     <div className={`relative overflow-hidden ${className}`}>
-        <img src="https://littlemaker.com.br/logo_lm-2/" alt="Little Maker" className="w-full h-full object-contain" />
+        <img src="/images/logo_lm.png" alt="Little Maker" className="w-full h-full object-contain" />
     </div>
   );
 

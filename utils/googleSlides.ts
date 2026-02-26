@@ -12,7 +12,8 @@ const GRAY_LIGHT = { red: 0.95, green: 0.95, blue: 0.95 };
 
 // Helper to get public URL
 const getLogoUrl = () => {
-    return "https://comercial-lm.vercel.app/images/logo_lm.png";
+    // Fallback to GitHub Raw if Vercel is having issues with public folder
+    return "https://raw.githubusercontent.com/littlemaker-prjs/comercial-lm/main/public/images/logo_lm.png";
 };
 
 // Helper to determine text content based on selection (Replicated logic from ProposalView)
@@ -237,6 +238,7 @@ export const createGoogleSlidePresentation = async (
   
   // Cover Content
   addText(coverId, client.schoolName || 'Escola', 0, 150, 720, 50, 32, PURPLE, true, 'CENTER');
+  addText(coverId, `A/C: ${client.contactName}`, 0, 210, 720, 30, 18, GRAY, false, 'CENTER');
   
   const dateStr = new Date(client.date).toLocaleDateString('pt-BR');
   const consultantName = client.consultantName || "Consultor";
