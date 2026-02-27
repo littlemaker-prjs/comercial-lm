@@ -14,7 +14,6 @@ const GRAY_LIGHT = { red: 0.95, green: 0.95, blue: 0.95 };
 const getLogoUrl = () => {
     // Using a public placeholder service that is guaranteed to be accessible by Google
     return "https://comercial-lm.vercel.app/images/logo_lm.png";
-    
 };
 
 // Helper to determine text content based on selection (Replicated logic from ProposalView)
