@@ -49,7 +49,9 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onOfflineLogin, onGoog
       }
 
       if (accessToken) {
+          const now = Date.now();
           sessionStorage.setItem('googleAccessToken', accessToken);
+          sessionStorage.setItem('googleTokenTimestamp', now.toString());
           onGoogleLoginSuccess(accessToken);
       }
 

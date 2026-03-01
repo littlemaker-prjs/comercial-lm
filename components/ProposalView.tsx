@@ -221,29 +221,40 @@ export const ProposalView: React.FC<ProposalViewProps> = ({ appState, setAppStat
             await onSave(false);
         }
 
-        let accessToken = googleAccessToken;
-
-        if (!accessToken) {
-            // 1. We need an Access Token. We force a re-auth/popup to grant scopes if needed.
-            // Add scopes for Drive/Slides
+        const getFreshToken = async () => {
             const provider = new firebase.auth.GoogleAuthProvider();
             provider.addScope('https://www.googleapis.com/auth/presentations');
             provider.addScope('https://www.googleapis.com/auth/drive.file');
             
-            // This will trigger a popup asking for permission
             const result = await auth.signInWithPopup(provider);
-            const credential = result.credential as any; // Cast to access accessToken
-            accessToken = credential?.accessToken;
+            const credential = result.credential as any;
+            const token = credential?.accessToken;
 
-            if (accessToken) {
-                sessionStorage.setItem('googleAccessToken', accessToken);
+            if (token) {
+                sessionStorage.setItem('googleAccessToken', token);
+                sessionStorage.setItem('googleTokenTimestamp', Date.now().toString());
             }
+            return token;
+        };
+
+        const isTokenExpired = () => {
+            const timestamp = sessionStorage.getItem('googleTokenTimestamp');
+            if (!timestamp) return true;
+            const now = Date.now();
+            const diff = now - parseInt(timestamp);
+            return diff > 50 * 60 * 1000; // 50 minutes (safety margin)
+        };
+
+        let accessToken = googleAccessToken || sessionStorage.getItem('googleAccessToken');
+
+        // Proactive check
+        if (!accessToken || isTokenExpired()) {
+            accessToken = await getFreshToken();
         }
 
         if (!accessToken) throw new Error("Não foi possível obter permissão de acesso.");
 
         // 2. Call Generator Service
-        // Use user.displayName if available, otherwise fallback to existing consultantName or "Consultor"
         const consultantName = user?.displayName || appState.client.consultantName || "Consultor";
         
         const stateToPass = {
@@ -254,10 +265,24 @@ export const ProposalView: React.FC<ProposalViewProps> = ({ appState, setAppStat
             }
         };
 
-        const editUrl = await createGoogleSlidePresentation(accessToken, stateToPass, calculationData);
-        
-        // 3. Open the new presentation
-        window.open(editUrl, '_blank');
+        try {
+            const editUrl = await createGoogleSlidePresentation(accessToken, stateToPass, calculationData);
+            window.open(editUrl, '_blank');
+        } catch (error: any) {
+            // Reactive check: if unauthorized, try one more time with a fresh token
+            if (error.message?.includes('401') || error.message?.includes('unauthorized') || error.message?.includes('authenticated')) {
+                console.log("Token expired (401), attempting refresh...");
+                accessToken = await getFreshToken();
+                if (accessToken) {
+                    const editUrl = await createGoogleSlidePresentation(accessToken, stateToPass, calculationData);
+                    window.open(editUrl, '_blank');
+                } else {
+                    throw error;
+                }
+            } else {
+                throw error;
+            }
+        }
 
     } catch (error: any) {
         console.error("Google Slides Error:", error);

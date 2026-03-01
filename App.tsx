@@ -102,6 +102,8 @@ function App() {
     if (firebaseUser) auth.signOut();
     setFirebaseUser(null);
     setOfflineUser(null);
+    sessionStorage.removeItem('googleAccessToken');
+    sessionStorage.removeItem('googleTokenTimestamp');
     setViewMode('dashboard');
     setIsMaster(false);
   };
