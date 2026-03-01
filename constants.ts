@@ -327,11 +327,11 @@ export const INITIAL_APP_STATE: AppState = {
 // IMPORTANT: These URLs must point to VALID IMAGES (PNG/JPG), not SVG or HTML pages.
 // Using .png extension for placehold.co ensures a raster image is returned.
 export const AMBIENTATION_IMAGES: Record<string, string> = {
-    'maker_padrao': 'https://comercial-lm.vercel.app/images/maker_padrao.jpg',
-    'maker_minima': 'https://comercial-lm.vercel.app/images/maker_minima.jpg',
-    'midia_padrao': 'https://comercial-lm.vercel.app/images/midia_padrao.jpg',
-    'infantil_oficina': 'https://comercial-lm.vercel.app/images/infantil_oficina.jpg',
-    'infantil_carrinho': 'https://comercial-lm.vercel.app/images/infantil_carrinho.jpg',
+    'maker_padrao': 'https://littlemaker.com.br/wp-content/uploads/2026/03/maker_padrao.jpg',
+    'maker_minima': 'https://littlemaker.com.br/wp-content/uploads/2026/03/maker_minima.jpg',
+    'midia_padrao': 'https://littlemaker.com.br/wp-content/uploads/2026/03/midia_padrao.jpg',
+    'infantil_oficina': 'https://littlemaker.com.br/wp-content/uploads/2026/03/infantil_oficina.jpg',
+    'infantil_carrinho': 'https://littlemaker.com.br/wp-content/uploads/2026/03/infantil_carrinho.jpg',
 };
 
 export const INFRA_DETAILS: Record<string, TechDetail> = {
