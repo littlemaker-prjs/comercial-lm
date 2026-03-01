@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { AppState, CategoryType } from '../types';
 import { Download, CheckSquare, Edit3, Presentation, Loader2 } from 'lucide-react';
 import { useSettings } from '../contexts/SettingsContext';
-import { PROPOSAL_TEXTS, INFRA_DETAILS, AMBIENTATION_IMAGES, LOGO_BASE64 } from '../constants';
+import { PROPOSAL_TEXTS, INFRA_DETAILS, AMBIENTATION_IMAGES } from '../constants';
 import PptxGenJS from 'pptxgenjs';
 import { auth, googleProvider } from '../firebase';
 import { createGoogleSlidePresentation } from '../utils/googleSlides';

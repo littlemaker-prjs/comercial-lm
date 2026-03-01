@@ -17,7 +17,6 @@ export interface InfraItem {
   category: CategoryType;
   type: ItemType;
   price: number;
-  description: string;
   requiresAssembly: boolean; // True = Frete + Montagem (Table 2), False = Frete (Table 1)
   isUpgrade?: boolean;
   isBase?: boolean;
