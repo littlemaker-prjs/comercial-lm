@@ -279,7 +279,7 @@ export const ProposalView: React.FC<ProposalViewProps> = ({ appState, setAppStat
 
    const BrandLogo = ({ className = "" }: { className?: string }) => (
     <div className={`relative overflow-hidden ${className}`}>
-        <img src="/images/logo_lm.png" alt="Little Maker" className="w-full h-full object-contain object-center" />
+        <img src="https://littlemaker.com.br/wp-content/uploads/2026/02/logo_lm.png" alt="Little Maker" className="w-full h-full object-contain object-center" />
     </div>
   );
 
