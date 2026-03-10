@@ -18,7 +18,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onOfflineLogin, onGoog
   const [guestEmail, setGuestEmail] = useState('');
 
   // Identifica se está no ambiente de produção (URL final)
-  const isProduction = window.location.hostname === 'comercial-lm.vercel.app';
+  const isProduction = window.location.hostname === 'comercial-lm.vercel.app' || window.location.hostname === 'propostas.littlemaker.com.br';
 
   const handleGoogleLogin = async () => {
     setError('');
