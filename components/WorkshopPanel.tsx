@@ -1,6 +1,6 @@
 
 import React from 'react';
-import { AppState, CategoryType, InfraItem } from '../types';
+import { AppState, CategoryType } from '../types';
 import { Truck, ArrowRight, AlertCircle } from 'lucide-react';
 import { useSettings } from '../contexts/SettingsContext';
 
@@ -12,8 +12,9 @@ interface WorkshopPanelProps {
 
 export const WorkshopPanel: React.FC<WorkshopPanelProps> = ({ appState, setAppState, onNext }) => {
   const { settings } = useSettings(); // Use Global Settings
-  const { regionId, selectedInfraIds } = appState;
+  const { regionId, selectedInfraIds, learningSpaceInfra } = appState;
   const segments = appState.client.segments || [];
+  const isLearningSpace = appState.client.clientType === 'Espaço de Aprendizagem';
 
   const toggleItem = (itemId: string, category: CategoryType) => {
     setAppState(prev => {
@@ -119,8 +120,8 @@ export const WorkshopPanel: React.FC<WorkshopPanelProps> = ({ appState, setAppSt
   };
 
   const renderCategoryColumn = (title: string, category: CategoryType) => {
-    // USE SETTINGS CATALOG
-    const items = settings.infraCatalog.filter(i => i.category === category);
+    // USE SETTINGS CATALOG (exclui itens de Espaço de Aprendizagem quando é Escola)
+    const items = settings.infraCatalog.filter(i => i.category === category && !i.id.startsWith('ls_'));
     const ambientacao = items.filter(i => i.type === 'ambientacao');
     const ferramentas = items.filter(i => i.type === 'ferramentas');
 
@@ -192,6 +193,302 @@ export const WorkshopPanel: React.FC<WorkshopPanelProps> = ({ appState, setAppSt
   const hasEI = segments.includes("Educação Infantil");
   const hasEF = segments.includes("Ens. Fundamental Anos Iniciais") || segments.includes("Ens. Fundamental Anos Finais") || segments.includes("Ensino Médio");
 
+  // Layout especial para Espaço de Aprendizagem (estado separado por coluna)
+  if (isLearningSpace) {
+    type ColKey = 'hybrid' | 'fundamental' | 'infantil';
+
+    const learningColConfig: Record<ColKey, {
+      ambientBase: string;
+      ambientMinima: string;
+      ambientUp12: string;
+      ambientUp6: string;
+      toolsBase: string;
+      toolsUpgradesRequireBase: string[];
+      toolsExclusivePair: [string, string] | null;
+    }> = {
+      hybrid: {
+        ambientBase: 'ls_hybrid_ambient_padrao_12',
+        ambientMinima: 'ls_hybrid_ambient_minima',
+        ambientUp12: 'ls_hybrid_ambient_up_12',
+        ambientUp6: 'ls_hybrid_ambient_up_6',
+        toolsBase: 'ls_hybrid_tools_padrao',
+        toolsUpgradesRequireBase: ['ls_hybrid_tools_digitais', 'ls_hybrid_tools_pc', 'ls_hybrid_tools_infantil_12', 'ls_hybrid_tools_infantil_6'],
+        toolsExclusivePair: ['ls_hybrid_tools_infantil_12', 'ls_hybrid_tools_infantil_6']
+      },
+      fundamental: {
+        ambientBase: 'ls_fund_ambient_padrao_12',
+        ambientMinima: 'ls_fund_ambient_minima',
+        ambientUp12: 'ls_fund_ambient_up_12',
+        ambientUp6: 'ls_fund_ambient_up_6',
+        toolsBase: 'ls_fund_tools_padrao',
+        toolsUpgradesRequireBase: ['ls_fund_tools_digitais', 'ls_fund_tools_pc', 'ls_fund_tools_red_12'],
+        toolsExclusivePair: null
+      },
+      infantil: {
+        ambientBase: 'ls_inf_ambient_padrao_12',
+        ambientMinima: 'ls_inf_ambient_minima',
+        ambientUp12: 'ls_inf_ambient_up_12',
+        ambientUp6: 'ls_inf_ambient_up_6',
+        toolsBase: 'ls_inf_tools_12',
+        toolsUpgradesRequireBase: ['ls_inf_tools_up_12', 'ls_inf_tools_up_6'],
+        toolsExclusivePair: ['ls_inf_tools_up_12', 'ls_inf_tools_up_6']
+      }
+    };
+
+    const toggleLearningAmbient = (colKey: ColKey, itemId: string, current: string[]) => {
+      const c = learningColConfig[colKey];
+      const isBase = itemId === c.ambientBase;
+      const isMinima = itemId === c.ambientMinima;
+      const isUp12 = itemId === c.ambientUp12;
+      const isUp6 = itemId === c.ambientUp6;
+      const isCarrinho = colKey === 'infantil' && itemId === 'ls_inf_carrinho';
+      const isSelected = current.includes(itemId);
+      const withoutCarrinho = (ids: string[]) => ids.filter(id => id !== 'ls_inf_carrinho');
+
+      if (isSelected) {
+        if (isBase) return current.filter(id => id !== c.ambientBase && id !== c.ambientUp12 && id !== c.ambientUp6);
+        if (isMinima) return current.filter(id => id !== c.ambientMinima);
+        if (isCarrinho) return current.filter(id => id !== 'ls_inf_carrinho');
+        return current.filter(id => id !== itemId);
+      }
+      if (isCarrinho) {
+        return [...current.filter(id => id !== c.ambientBase && id !== c.ambientUp12 && id !== c.ambientUp6), 'ls_inf_carrinho'];
+      }
+      if (isMinima) {
+        return withoutCarrinho([...current.filter(id => id !== c.ambientBase && id !== c.ambientUp12 && id !== c.ambientUp6), c.ambientMinima]);
+      }
+      if (isUp12) {
+        let next = withoutCarrinho([...current.filter(id => id !== c.ambientMinima), c.ambientBase, c.ambientUp12]).filter(id => id !== c.ambientUp6);
+        return [...new Set(next)];
+      }
+      if (isUp6) {
+        let next = withoutCarrinho([...current.filter(id => id !== c.ambientMinima), c.ambientBase, c.ambientUp6]).filter(id => id !== c.ambientUp12);
+        return [...new Set(next)];
+      }
+      if (isBase) {
+        return withoutCarrinho([...current.filter(id => id !== c.ambientMinima), itemId]);
+      }
+      return current;
+    };
+
+    const toggleLearningTools = (colKey: ColKey, itemId: string, current: string[]) => {
+      const c = learningColConfig[colKey];
+      const isBase = itemId === c.toolsBase;
+      const isUpgrade = c.toolsUpgradesRequireBase.includes(itemId);
+      const isSelected = current.includes(itemId);
+      const [upA, upB] = c.toolsExclusivePair || ['', ''];
+
+      if (isSelected) {
+        if (isBase) return current.filter(id => id !== c.toolsBase && !c.toolsUpgradesRequireBase.includes(id));
+        return current.filter(id => id !== itemId);
+      }
+      if (isUpgrade) {
+        let next = current.includes(c.toolsBase) ? [...current] : [...current, c.toolsBase];
+        if (upA && upB) next = next.filter(id => id !== (itemId === upA ? upB : upA));
+        next.push(itemId);
+        return [...new Set(next)];
+      }
+      if (isBase) return [...current, itemId];
+      return current;
+    };
+
+    const learningColumns: {
+      id: string;
+      title: string;
+      ambientacao: { id: string; label: string; category: CategoryType }[];
+      ferramentas: { id: string; label: string; category: CategoryType }[];
+    }[] = [
+      {
+        id: 'hybrid',
+        title: 'Maker Híbrida',
+        ambientacao: [
+          { id: 'ls_hybrid_ambient_padrao_12', label: 'Oficina Padrão - 12 alunos', category: 'maker' },
+          { id: 'ls_hybrid_ambient_up_12', label: 'Upgrade 12 alunos', category: 'maker' },
+          { id: 'ls_hybrid_ambient_up_6', label: 'Upgrade 6 alunos', category: 'maker' },
+          { id: 'ls_hybrid_ambient_minima', label: 'Ambientação Mínima', category: 'maker' }
+        ],
+        ferramentas: [
+          { id: 'ls_hybrid_tools_padrao', label: 'Ferramentas Híbrida', category: 'maker' },
+          { id: 'ls_hybrid_tools_digitais', label: 'Upgrade Projetos Digitais', category: 'maker' },
+          { id: 'ls_hybrid_tools_pc', label: 'Upgrade Computadores', category: 'maker' },
+          { id: 'ls_hybrid_tools_infantil_12', label: 'Upgrade Infantil 12 alunos', category: 'infantil' },
+          { id: 'ls_hybrid_tools_infantil_6', label: 'Upgrade Infantil 6 alunos', category: 'infantil' }
+        ]
+      },
+      {
+        id: 'fundamental',
+        title: 'Maker Fundamental e Médio',
+        ambientacao: [
+          { id: 'ls_fund_ambient_padrao_12', label: 'Oficina Padrão - 12 alunos', category: 'maker' },
+          { id: 'ls_fund_ambient_up_12', label: 'Upgrade 12 alunos', category: 'maker' },
+          { id: 'ls_fund_ambient_up_6', label: 'Upgrade 6 alunos', category: 'maker' },
+          { id: 'ls_fund_ambient_minima', label: 'Ambientação Mínima', category: 'maker' }
+        ],
+        ferramentas: [
+          { id: 'ls_fund_tools_padrao', label: 'Ferramentas Maker Padrão', category: 'maker' },
+          { id: 'ls_fund_tools_digitais', label: 'Upgrade Projetos Digitais', category: 'maker' },
+          { id: 'ls_fund_tools_pc', label: 'Upgrade Computadores', category: 'maker' },
+          { id: 'ls_fund_tools_red_12', label: 'Upgrade Padrão até 12 alunos', category: 'maker' }
+        ]
+      },
+      {
+        id: 'infantil',
+        title: 'Maker Infantil',
+        ambientacao: [
+          { id: 'ls_inf_ambient_padrao_12', label: 'Oficina Padrão - 18 alunos', category: 'infantil' },
+          { id: 'ls_inf_ambient_up_12', label: 'Upgrade 12 alunos', category: 'infantil' },
+          { id: 'ls_inf_ambient_up_6', label: 'Upgrade 6 alunos', category: 'infantil' },
+          { id: 'ls_inf_ambient_minima', label: 'Ambientação Mínima', category: 'infantil' },
+          { id: 'ls_inf_carrinho', label: 'Carrinho', category: 'infantil' }
+        ],
+        ferramentas: [
+          { id: 'ls_inf_tools_12', label: 'Ferramentas Infantil', category: 'infantil' },
+          { id: 'ls_inf_tools_up_12', label: 'Upgrade Infantil 12 alunos', category: 'infantil' },
+          { id: 'ls_inf_tools_up_6', label: 'Upgrade Infantil 6 alunos', category: 'infantil' }
+        ]
+      }
+    ];
+
+    return (
+      <div className="h-full flex flex-col bg-slate-50 overflow-hidden">
+        {/* Region Selector Header */}
+        <div className="bg-white border-b border-slate-200 p-4 shadow-sm z-10 shrink-0">
+          <div className="max-w-7xl mx-auto flex items-center justify-between gap-4">
+            <div className="flex items-center gap-4">
+              <label className="font-bold text-slate-800 flex items-center gap-2">
+                <Truck className="w-5 h-5" />
+                Região Entrega:
+              </label>
+              <div className="relative">
+                <select 
+                  value={regionId}
+                  onChange={(e) => setAppState(prev => ({ ...prev, regionId: e.target.value }))}
+                  className="appearance-none bg-[#EBF5E0] text-slate-800 font-medium py-2 pl-4 pr-10 rounded-full border border-[#d4e8c0] focus:outline-none focus:ring-2 focus:ring-[#8BBF56] cursor-pointer min-w-[200px]"
+                >
+                  {/* USE SETTINGS REGIONS */}
+                  {settings.regions.map(r => (
+                    <option key={r.id} value={r.id}>{r.label}</option>
+                  ))}
+                </select>
+                <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-slate-600">
+                  <svg className="fill-current h-4 w-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20"><path d="M9.293 12.95l.707.707L15.657 8l-1.414-1.414L10 10.828 5.757 6.586 4.343 8z"/></svg>
+                </div>
+              </div>
+            </div>
+            
+            {onNext && (
+              <button 
+                onClick={onNext}
+                className="flex items-center gap-2 bg-[#71477A] text-white px-6 py-2 rounded-lg font-bold hover:bg-[#5d3a64] transition-colors shadow-sm"
+              >
+                <span>Continuar para Proposta</span>
+                <ArrowRight className="w-4 h-4" />
+              </button>
+            )}
+          </div>
+        </div>
+
+        {/* Custom Columns for Espaço de Aprendizagem */}
+        <div className="flex-1 w-full overflow-x-auto overflow-y-hidden">
+          <div className="h-full flex gap-6 p-6 min-w-max">
+            {learningColumns.map(col => (
+              <div key={col.id} className="flex-1 min-w-[340px] max-w-[420px] flex flex-col bg-white rounded-lg shadow-sm border border-slate-200 overflow-hidden shrink-0">
+                <div className="p-3 bg-[#8BBF56] border-b border-green-600">
+                  <h3 className="font-bold text-sm text-white text-center uppercase tracking-wide">{col.title}</h3>
+                </div>
+
+                <div className="p-5 flex-1 flex flex-col gap-6 overflow-y-auto">
+                  <div>
+                    <h4 className="font-bold text-slate-900 mb-3 text-sm border-b border-slate-100 pb-1">Ambientação</h4>
+                    <div className="space-y-3">
+                      {col.ambientacao.map(item => {
+                        const current = learningSpaceInfra?.[col.id as 'hybrid' | 'fundamental' | 'infantil'] || [];
+                        const isSelected = current.includes(item.id);
+                        return (
+                          <label key={item.id} className="flex items-start gap-3 cursor-pointer group hover:bg-slate-50 p-2 rounded-lg -ml-2 transition-colors">
+                            <div className={`relative flex-shrink-0 flex items-center justify-center w-5 h-5 rounded border transition-colors mt-0.5 ${
+                              isSelected ? 'bg-slate-800 border-slate-800' : 'bg-white border-slate-300 group-hover:border-slate-400'
+                            }`}>
+                              <input 
+                                type="checkbox" 
+                                className="opacity-0 absolute inset-0 cursor-pointer"
+                                checked={isSelected}
+                                onChange={() => {
+                                  const colKey = col.id as ColKey;
+                                  const prevCol = learningSpaceInfra?.[colKey] || [];
+                                  const nextCol = toggleLearningAmbient(colKey, item.id, prevCol);
+                                  setAppState(prev => ({
+                                    ...prev,
+                                    learningSpaceInfra: {
+                                      hybrid: prev.learningSpaceInfra?.hybrid || [],
+                                      fundamental: prev.learningSpaceInfra?.fundamental || [],
+                                      infantil: prev.learningSpaceInfra?.infantil || [],
+                                      [colKey]: nextCol
+                                    }
+                                  }));
+                                }}
+                              />
+                              {isSelected && <span className="text-white text-xs font-bold">✓</span>}
+                            </div>
+                            <span className={`text-sm select-none leading-tight ${isSelected ? 'text-indigo-900 font-medium' : 'text-slate-600'}`}>
+                              {item.label}
+                            </span>
+                          </label>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  <div>
+                    <h4 className="font-bold text-slate-900 mb-3 text-sm border-b border-slate-100 pb-1">Ferramentas</h4>
+                    <div className="space-y-3">
+                      {col.ferramentas.map(item => {
+                        const current = learningSpaceInfra?.[col.id as 'hybrid' | 'fundamental' | 'infantil'] || [];
+                        const isSelected = current.includes(item.id);
+                        return (
+                          <label key={item.id} className="flex items-start gap-3 cursor-pointer group hover:bg-slate-50 p-2 rounded-lg -ml-2 transition-colors">
+                            <div className={`relative flex-shrink-0 flex items-center justify-center w-5 h-5 rounded border transition-colors mt-0.5 ${
+                              isSelected ? 'bg-slate-800 border-slate-800' : 'bg-white border-slate-300 group-hover:border-slate-400'
+                            }`}>
+                              <input 
+                                type="checkbox" 
+                                className="opacity-0 absolute inset-0 cursor-pointer"
+                                checked={isSelected}
+                                onChange={() => {
+                                  const colKey = col.id as ColKey;
+                                  const prevCol = learningSpaceInfra?.[colKey] || [];
+                                  const nextCol = toggleLearningTools(colKey, item.id, prevCol);
+                                  setAppState(prev => ({
+                                    ...prev,
+                                    learningSpaceInfra: {
+                                      hybrid: prev.learningSpaceInfra?.hybrid || [],
+                                      fundamental: prev.learningSpaceInfra?.fundamental || [],
+                                      infantil: prev.learningSpaceInfra?.infantil || [],
+                                      [colKey]: nextCol
+                                    }
+                                  }));
+                                }}
+                              />
+                              {isSelected && <span className="text-white text-xs font-bold">✓</span>}
+                            </div>
+                            <span className={`text-sm select-none leading-tight ${isSelected ? 'text-indigo-900 font-medium' : 'text-slate-600'}`}>
+                              {item.label}
+                            </span>
+                          </label>
+                        );
+                      })}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Layout padrão (Escola)
   return (
     <div className="h-full flex flex-col bg-slate-50 overflow-hidden">
         {/* Region Selector Header */}

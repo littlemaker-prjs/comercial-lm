@@ -6,6 +6,7 @@ import { Plus, Search, FileText, Calendar, Trash2, Loader2, LogOut, GraduationCa
 import { UserManagementModal } from './UserManagementModal';
 import { SettingsModal } from './SettingsModal';
 import { useSettings } from '../contexts/SettingsContext';
+import { getSubscriptionMonthlyForStudents } from '../constants';
 
 interface SavedProposal {
   id: string;
@@ -21,11 +22,10 @@ interface DashboardProps {
   onLoadProposal: (id: string | null, data: AppState) => void;
   onLogout: () => void;
   user: any;
-  isOffline: boolean;
   isMaster: boolean; // Received from App
 }
 
-export const Dashboard: React.FC<DashboardProps> = ({ onNewProposal, onLoadProposal, onLogout, user, isOffline, isMaster }) => {
+export const Dashboard: React.FC<DashboardProps> = ({ onNewProposal, onLoadProposal, onLogout, user, isMaster }) => {
   const { settings } = useSettings(); // Use Global Settings
   const [proposals, setProposals] = useState<SavedProposal[]>([]);
   const [loading, setLoading] = useState(true);
@@ -38,7 +38,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNewProposal, onLoadPropo
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isUserModalOpen, setIsUserModalOpen] = useState(false);
   const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
-  const [settingsTab, setSettingsTab] = useState<'infra' | 'freight' | 'config'>('infra');
+  const [settingsTab, setSettingsTab] = useState<'infra_escola' | 'infra_ea' | 'freight' | 'config'>('infra_escola');
   const menuRef = useRef<HTMLDivElement>(null);
 
   const [modalConfig, setModalConfig] = useState<{
@@ -52,7 +52,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNewProposal, onLoadPropo
 
   useEffect(() => {
     fetchProposals();
-  }, [user, isOffline]);
+  }, [user]);
 
   useEffect(() => {
       const handleClickOutside = (event: MouseEvent) => {
@@ -64,7 +64,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNewProposal, onLoadPropo
       return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  const openSettings = (tab: 'infra' | 'freight' | 'config') => {
+  const openSettings = (tab: 'infra_escola' | 'infra_ea' | 'freight' | 'config') => {
       setSettingsTab(tab);
       setIsSettingsModalOpen(true);
       setIsMenuOpen(false);
@@ -76,31 +76,21 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNewProposal, onLoadPropo
     setPermissionError(false);
 
     try {
-      if (isOffline) {
-        const localData = localStorage.getItem('offline_proposals');
-        if (localData) {
-            let parsed = JSON.parse(localData);
-            setProposals(parsed.sort((a: any, b: any) => (b.updatedAt?.seconds || 0) - (a.updatedAt?.seconds || 0)));
-        } else {
-            setProposals([]);
-        }
-      } else {
-        const querySnapshot = await db.collection('proposals').get();
-        const items: SavedProposal[] = [];
-        querySnapshot.forEach((doc) => {
-            const data = doc.data();
-            items.push({
-                id: doc.id,
-                userId: data.userId || '',
-                updatedAt: data.updatedAt,
-                schoolName: data.data?.client?.schoolName || data.schoolName || 'Sem nome',
-                userEmail: data.userEmail,
-                data: data.data as AppState
-            });
+      const querySnapshot = await db.collection('proposals').get();
+      const items: SavedProposal[] = [];
+      querySnapshot.forEach((doc) => {
+        const data = doc.data();
+        items.push({
+          id: doc.id,
+          userId: data.userId || '',
+          updatedAt: data.updatedAt,
+          schoolName: data.data?.client?.schoolName || data.schoolName || 'Sem nome',
+          userEmail: data.userEmail,
+          data: data.data as AppState
         });
-        items.sort((a, b) => (b.updatedAt?.seconds || 0) - (a.updatedAt?.seconds || 0));
-        setProposals(items);
-      }
+      });
+      items.sort((a, b) => (b.updatedAt?.seconds || 0) - (a.updatedAt?.seconds || 0));
+      setProposals(items);
     } catch (error: any) {
       console.error("Erro no Firestore:", error);
       setFetchError(error.message);
@@ -122,9 +112,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNewProposal, onLoadPropo
         isDestructive: true,
         onConfirm: async () => {
             try {
-                if (!isOffline) {
-                    await db.collection('proposals').doc(id).delete();
-                }
+                await db.collection('proposals').doc(id).delete();
                 setProposals(prev => prev.filter(p => p.id !== id));
             } catch (error) {
                 console.error("Delete error:", error);
@@ -147,10 +135,12 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNewProposal, onLoadPropo
   };
 
   const calculateCardValues = (proposalData: AppState) => {
-      if (!proposalData) return { hasMidia: false, hasMaker: false, hasInfantil: false, totalMaterialYear: 0, totalInfra: 0, segments: [], totalBonus: 0, bonusType: '' };
+      if (!proposalData) return { hasMidia: false, hasMaker: false, hasInfantil: false, totalMaterialYear: 0, totalInfra: 0, segments: [], totalBonus: 0, bonusType: '', isLearningSpace: false };
       
-      const selectedIds = proposalData.selectedInfraIds || [];
-      // USE SETTINGS CATALOG INSTEAD OF CONSTANT
+      const isLearningSpace = proposalData.client?.clientType === 'Espaço de Aprendizagem';
+      const selectedIds = isLearningSpace && proposalData.learningSpaceInfra
+          ? [...(proposalData.learningSpaceInfra.hybrid || []), ...(proposalData.learningSpaceInfra.fundamental || []), ...(proposalData.learningSpaceInfra.infantil || [])]
+          : (proposalData.selectedInfraIds || []);
       const selectedItems = settings.infraCatalog.filter(i => selectedIds.includes(i.id));
       const hasMidia = selectedItems.some(i => i.category === 'midia');
       const hasMaker = selectedItems.some(i => i.category === 'maker');
@@ -159,32 +149,32 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNewProposal, onLoadPropo
       const segments = proposalData.client?.segments || [];
       const commercial = proposalData.commercial;
       
-      // Material Calc
-      const getBaseMaterialPrice = (s: number) => {
-          if (s >= 800) return 240;
-          if (s >= 400) return 280;
-          if (s >= 200) return 350;
-          if (s >= 100) return 480;
-          return 650;
-      };
-
-      const basePriceTiered = getBaseMaterialPrice(students);
-      
-      let appliedPrice = 0;
-      if (commercial.customValues?.materialPricePerYear !== undefined) {
-          appliedPrice = commercial.customValues.materialPricePerYear;
+      // Material: EA = plano mais provável pelo número de alunos (mensal × 12 para exibir como Material/ano)
+      let totalMaterialYear = 0;
+      if (isLearningSpace) {
+          totalMaterialYear = getSubscriptionMonthlyForStudents(students) * 12;
       } else {
-          // USE SETTINGS VARIABLE
-          appliedPrice = commercial.useMarketplace 
-            ? basePriceTiered / settings.variables.marketplaceMargin 
-            : basePriceTiered;
+          const getBaseMaterialPrice = (s: number) => {
+              if (s >= 800) return 240;
+              if (s >= 400) return 280;
+              if (s >= 200) return 350;
+              if (s >= 100) return 480;
+              return 650;
+          };
+          const basePriceTiered = getBaseMaterialPrice(students);
+          let appliedPrice = 0;
+          if (commercial?.customValues?.materialPricePerYear !== undefined) {
+              appliedPrice = commercial.customValues.materialPricePerYear;
+          } else {
+              appliedPrice = commercial?.useMarketplace
+                  ? basePriceTiered / settings.variables.marketplaceMargin
+                  : basePriceTiered;
+          }
+          totalMaterialYear = appliedPrice * students;
       }
-
-      const totalMaterialYear = appliedPrice * students; 
       
       // Infra Calc
       const regionId = proposalData.regionId || 'ate_700';
-      // USE SETTINGS REGIONS
       const region = settings.regions.find(r => r.id === regionId) || settings.regions[0];
       const infraSum = selectedItems.reduce((sum, i) => sum + i.price, 0);
       let freight = 0;
@@ -193,48 +183,37 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNewProposal, onLoadPropo
           freight = needsAssembly ? region.priceAssembly : region.priceSimple;
       }
       
-      const totalInfraGross = commercial.customValues?.infraTotal !== undefined
+      const totalInfraGross = commercial?.customValues?.infraTotal !== undefined
         ? commercial.customValues.infraTotal
         : (infraSum + freight);
 
-      // Bonus Calc Logic
-      let calcMaterialBonus = 0;
-      let calcInfraBonus = 0;
-
-      if (commercial.contractDuration === 3) {
-        const baseContractValue3Years = totalMaterialYear * 3;
-        
-        if (commercial.useMarketplace && commercial.applyInfraBonus && selectedItems.length > 0) {
-            // Infra Bonus - USE SETTINGS VARIABLE
-            const fullBonus = baseContractValue3Years * settings.variables.infraBonus;
-            if (fullBonus > totalInfraGross) {
-                calcInfraBonus = totalInfraGross;
-                calcMaterialBonus = fullBonus - totalInfraGross;
-            } else {
-                calcInfraBonus = fullBonus;
-            }
-        } else if (!commercial.applyInfraBonus || !commercial.useMarketplace) {
-            // Material Bonus - USE SETTINGS VARIABLE
-            calcMaterialBonus = baseContractValue3Years * settings.variables.materialBonus;
-        }
-      }
-
-      const finalMaterialBonus = commercial.customValues?.materialBonus !== undefined
-          ? commercial.customValues.materialBonus
-          : calcMaterialBonus;
-      
-      const finalInfraBonus = commercial.customValues?.infraBonus !== undefined
-          ? commercial.customValues.infraBonus
-          : calcInfraBonus;
-
-      const totalBonus = finalMaterialBonus + finalInfraBonus;
-      
+      // Bonus: EA não tem contrato 3 anos, Marketplace nem bônus
+      let totalBonus = 0;
       let bonusType = '';
-      if (finalInfraBonus > 0 && finalMaterialBonus > 0) bonusType = 'Infra + Mat.';
-      else if (finalInfraBonus > 0) bonusType = 'Infra';
-      else if (finalMaterialBonus > 0) bonusType = 'Material';
+      if (!isLearningSpace && commercial?.contractDuration === 3) {
+          let calcMaterialBonus = 0;
+          let calcInfraBonus = 0;
+          const baseContractValue3Years = totalMaterialYear * 3;
+          if (commercial?.useMarketplace && commercial?.applyInfraBonus && selectedItems.length > 0) {
+              const fullBonus = baseContractValue3Years * settings.variables.infraBonus;
+              if (fullBonus > totalInfraGross) {
+                  calcInfraBonus = totalInfraGross;
+                  calcMaterialBonus = fullBonus - totalInfraGross;
+              } else {
+                  calcInfraBonus = fullBonus;
+              }
+          } else if (!commercial?.applyInfraBonus || !commercial?.useMarketplace) {
+              calcMaterialBonus = baseContractValue3Years * settings.variables.materialBonus;
+          }
+          const finalMaterialBonus = commercial?.customValues?.materialBonus !== undefined ? commercial.customValues.materialBonus : calcMaterialBonus;
+          const finalInfraBonus = commercial?.customValues?.infraBonus !== undefined ? commercial.customValues.infraBonus : calcInfraBonus;
+          totalBonus = finalMaterialBonus + finalInfraBonus;
+          if (finalInfraBonus > 0 && finalMaterialBonus > 0) bonusType = 'Infra + Mat.';
+          else if (finalInfraBonus > 0) bonusType = 'Infra';
+          else if (finalMaterialBonus > 0) bonusType = 'Material';
+      }
       
-      return { hasMidia, hasMaker, hasInfantil, totalMaterialYear, totalInfra: totalInfraGross, segments, totalBonus, bonusType };
+      return { hasMidia, hasMaker, hasInfantil, totalMaterialYear, totalInfra: totalInfraGross, segments, totalBonus, bonusType, isLearningSpace };
   };
 
   const filteredProposals = proposals.filter(p => 
@@ -311,7 +290,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNewProposal, onLoadPropo
                     <div className="hidden md:flex flex-col items-end">
                         <span className="text-sm font-medium">{user.email}</span>
                         <span className="text-[10px] opacity-70 flex items-center gap-1 uppercase">
-                            {isMaster ? 'ADMIN MASTER' : 'CONSULTOR'} • {isOffline ? 'OFFLINE' : 'ONLINE'}
+                            {isMaster ? 'ADMIN MASTER' : 'CONSULTOR'}
                         </span>
                     </div>
                     <ChevronDown className={`w-4 h-4 transition-transform ${isMenuOpen ? 'rotate-180' : ''}`} />
@@ -336,7 +315,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNewProposal, onLoadPropo
                                 </button>
                                 
                                 <button 
-                                    onClick={() => openSettings('infra')}
+                                    onClick={() => openSettings('infra_escola')}
                                     className="w-full text-left px-4 py-3 hover:bg-slate-50 flex items-center gap-3 transition-colors border-b border-slate-100"
                                 >
                                     <div className="bg-green-100 p-1.5 rounded-lg text-green-700">
@@ -344,7 +323,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNewProposal, onLoadPropo
                                     </div>
                                     <div>
                                         <div className="font-bold text-sm">Configurar Precificação</div>
-                                        <div className="text-[10px] text-slate-500">Gerenciar Preços, Frete e Margens</div>
+                                        <div className="text-[10px] text-slate-500">Infra Escola, Infra EA, Frete e Margens</div>
                                     </div>
                                 </button>
                             </>

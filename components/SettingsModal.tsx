@@ -1,18 +1,20 @@
 
 import React, { useState, useEffect } from 'react';
 import { useSettings } from '../contexts/SettingsContext';
-import { X, Save, RotateCcw, DollarSign, Truck, Percent, Loader2, Check } from 'lucide-react';
+import { X, Save, DollarSign, Truck, Percent, Loader2, Check, GraduationCap, Building2 } from 'lucide-react';
 import { InfraItem, Region, GlobalVariables } from '../types';
+
+type SettingsTab = 'infra_escola' | 'infra_ea' | 'freight' | 'config';
 
 interface SettingsModalProps {
   isOpen: boolean;
   onClose: () => void;
-  defaultTab?: 'infra' | 'freight' | 'config';
+  defaultTab?: SettingsTab;
 }
 
-export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, defaultTab = 'infra' }) => {
+export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, defaultTab = 'infra_escola' }) => {
   const { settings, updateSettings } = useSettings();
-  const [activeTab, setActiveTab] = useState<'infra' | 'freight' | 'config'>(defaultTab);
+  const [activeTab, setActiveTab] = useState<SettingsTab>(defaultTab);
   const [localInfra, setLocalInfra] = useState<InfraItem[]>([]);
   const [localRegions, setLocalRegions] = useState<Region[]>([]);
   const [localVars, setLocalVars] = useState<GlobalVariables>({ marketplaceMargin: 0, materialBonus: 0, infraBonus: 0 });
@@ -77,10 +79,16 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, d
         {/* Tabs */}
         <div className="flex border-b border-slate-200 bg-slate-50 shrink-0">
             <button 
-                onClick={() => setActiveTab('infra')}
-                className={`flex-1 py-4 font-medium text-sm flex items-center justify-center gap-2 transition-colors border-b-2 ${activeTab === 'infra' ? 'border-[#71477A] text-[#71477A] bg-white' : 'border-transparent text-slate-500 hover:bg-slate-100'}`}
+                onClick={() => setActiveTab('infra_escola')}
+                className={`flex-1 py-4 font-medium text-sm flex items-center justify-center gap-2 transition-colors border-b-2 ${activeTab === 'infra_escola' ? 'border-[#71477A] text-[#71477A] bg-white' : 'border-transparent text-slate-500 hover:bg-slate-100'}`}
             >
-                <DollarSign className="w-4 h-4" /> Tabela de Preços (Infra)
+                <GraduationCap className="w-4 h-4" /> Infra Escola
+            </button>
+            <button 
+                onClick={() => setActiveTab('infra_ea')}
+                className={`flex-1 py-4 font-medium text-sm flex items-center justify-center gap-2 transition-colors border-b-2 ${activeTab === 'infra_ea' ? 'border-[#71477A] text-[#71477A] bg-white' : 'border-transparent text-slate-500 hover:bg-slate-100'}`}
+            >
+                <Building2 className="w-4 h-4" /> Infra EA
             </button>
             <button 
                 onClick={() => setActiveTab('freight')}
@@ -99,9 +107,10 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, d
         {/* Content */}
         <div className="flex-1 overflow-y-auto p-6 bg-slate-50">
             
-            {/* Tab: Infra Prices */}
-            {activeTab === 'infra' && (
+            {/* Tab: Infra Escola */}
+            {activeTab === 'infra_escola' && (
                 <div className="bg-white rounded-lg shadow-sm border border-slate-200 overflow-hidden">
+                    <p className="text-sm text-slate-500 px-4 py-2 bg-slate-50 border-b border-slate-100">Itens de infraestrutura para propostas do tipo <strong>Escola</strong>.</p>
                     <table className="w-full text-sm text-left">
                         <thead className="bg-slate-100 text-slate-600 font-bold uppercase text-xs">
                             <tr>
@@ -111,7 +120,41 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, d
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-100">
-                            {localInfra.map(item => (
+                            {localInfra.filter(item => !item.id.startsWith('ls_')).map(item => (
+                                <tr key={item.id} className="hover:bg-slate-50">
+                                    <td className="px-4 py-3 font-medium text-slate-900">{item.label}</td>
+                                    <td className="px-4 py-3">
+                                        <span className="bg-slate-100 text-slate-600 px-2 py-0.5 rounded text-[10px] uppercase font-bold">{item.category}</span>
+                                    </td>
+                                    <td className="px-4 py-2 text-right">
+                                        <input 
+                                            type="number" 
+                                            value={item.price}
+                                            onChange={(e) => handleInfraChange(item.id, 'price', parseFloat(e.target.value) || 0)}
+                                            className="w-32 text-right border border-slate-300 rounded px-2 py-1 focus:ring-2 focus:ring-[#71477A] outline-none font-mono"
+                                        />
+                                    </td>
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
+                </div>
+            )}
+
+            {/* Tab: Infra EA (Espaço de Aprendizagem) */}
+            {activeTab === 'infra_ea' && (
+                <div className="bg-white rounded-lg shadow-sm border border-slate-200 overflow-hidden">
+                    <p className="text-sm text-slate-500 px-4 py-2 bg-slate-50 border-b border-slate-100">Itens de infraestrutura para propostas do tipo <strong>Espaço de Aprendizagem</strong>.</p>
+                    <table className="w-full text-sm text-left">
+                        <thead className="bg-slate-100 text-slate-600 font-bold uppercase text-xs">
+                            <tr>
+                                <th className="px-4 py-3">Item</th>
+                                <th className="px-4 py-3">Categoria</th>
+                                <th className="px-4 py-3 text-right">Preço Atual (R$)</th>
+                            </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-100">
+                            {localInfra.filter(item => item.id.startsWith('ls_')).map(item => (
                                 <tr key={item.id} className="hover:bg-slate-50">
                                     <td className="px-4 py-3 font-medium text-slate-900">{item.label}</td>
                                     <td className="px-4 py-3">

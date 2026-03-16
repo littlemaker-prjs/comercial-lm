@@ -18,6 +18,11 @@ const SEGMENT_OPTIONS = [
     "Ensino Médio"
 ];
 
+const CLIENT_TYPE_OPTIONS: Array<'Escola' | 'Espaço de Aprendizagem'> = [
+    'Escola',
+    'Espaço de Aprendizagem'
+];
+
 export const StartScreen: React.FC<StartScreenProps> = ({ appState, setAppState, onNext }) => {
   const { settings } = useSettings(); // Use Global Settings for Catalog
   const { client, commercial } = appState;
@@ -137,20 +142,51 @@ export const StartScreen: React.FC<StartScreenProps> = ({ appState, setAppState,
             
             <div className="p-8 space-y-6">
                 {/* Form Fields */}
-                <div className="space-y-2">
-                    <label className="block text-sm font-medium text-slate-700">Nome da Escola / Cliente</label>
-                    <div className="relative">
-                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                        <Building2 className="h-5 w-5 text-slate-400" />
+                <div className="space-y-4">
+                    {/* Tipo de cliente (sem título explícito) */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                        {CLIENT_TYPE_OPTIONS.map((type) => {
+                            const isSelected = client.clientType === type;
+                            return (
+                                <button
+                                    type="button"
+                                    key={type}
+                                    onClick={() => setAppState(prev => ({
+                                        ...prev,
+                                        client: { ...prev.client, clientType: type }
+                                    }))}
+                                    className={`flex items-center gap-3 p-3 rounded-lg border cursor-pointer transition-all text-left ${
+                                        isSelected
+                                        ? 'bg-green-50 border-[#8BBF56] text-[#6a9440]'
+                                        : 'bg-white border-slate-200 hover:border-green-300 text-slate-600'
+                                    }`}
+                                >
+                                    <div className={`w-5 h-5 rounded-full flex items-center justify-center border ${
+                                        isSelected ? 'bg-[#8BBF56] border-[#8BBF56]' : 'border-slate-300'
+                                    }`}>
+                                        {isSelected && <CheckCircle2 className="w-3.5 h-3.5 text-white" />}
+                                    </div>
+                                    <span className="text-sm font-medium select-none">{type}</span>
+                                </button>
+                            );
+                        })}
                     </div>
-                    <input
-                        type="text"
-                        name="schoolName"
-                        value={client.schoolName}
-                        onChange={handleChange}
-                        className="block w-full pl-10 pr-3 py-3 border border-slate-300 rounded-lg focus:ring-[#8BBF56] focus:border-[#8BBF56] transition-colors bg-white text-slate-900"
-                        placeholder="Ex: Colégio Futuro"
-                    />
+
+                    <div className="space-y-2">
+                        <label className="block text-sm font-medium text-slate-700">Nome da Empresa</label>
+                        <div className="relative">
+                        <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                            <Building2 className="h-5 w-5 text-slate-400" />
+                        </div>
+                        <input
+                            type="text"
+                            name="schoolName"
+                            value={client.schoolName}
+                            onChange={handleChange}
+                            className="block w-full pl-10 pr-3 py-3 border border-slate-300 rounded-lg focus:ring-[#8BBF56] focus:border-[#8BBF56] transition-colors bg-white text-slate-900"
+                            placeholder="Ex: Colégio Futuro"
+                        />
+                        </div>
                     </div>
                 </div>
 

@@ -1,5 +1,6 @@
 
 export interface ClientInfo {
+  clientType: 'Escola' | 'Espaço de Aprendizagem';
   schoolName: string;
   contactName: string;
   consultantName?: string;
@@ -66,10 +67,17 @@ export interface TechDetail {
   identityItems?: TechItem[]; // New field for separated Visual Identity items
 }
 
+export interface LearningSpaceInfraSelection {
+  hybrid: string[];
+  fundamental: string[];
+  infantil: string[];
+}
+
 // Global App State
 export interface AppState {
   client: ClientInfo;
   regionId: string;
   selectedInfraIds: string[];
   commercial: CommercialConfig;
+  learningSpaceInfra?: LearningSpaceInfraSelection;
 }

@@ -1,6 +1,6 @@
 
 import { AppState, CategoryType } from '../types';
-import { PROPOSAL_TEXTS, INFRA_DETAILS, AMBIENTATION_IMAGES, INFRA_CATALOG } from '../constants';
+import { PROPOSAL_TEXTS, INFRA_DETAILS, AMBIENTATION_IMAGES, INFRA_CATALOG, SUBSCRIPTION_PLANS_EA, getRecommendedPlanIndexForStudents } from '../constants';
 
 // Colors
 const PURPLE = { red: 0.443, green: 0.278, blue: 0.478 }; // #71477A
@@ -16,71 +16,97 @@ const getLogoUrl = () => {
     return "https://littlemaker.com.br/wp-content/uploads/2026/02/logo_lm.png";
 };
 
-// Helper to determine text content based on selection (Replicated logic from ProposalView)
-const getProposalText = (category: CategoryType, selectedIds: string[], calculations: any) => {
-    // Capacity logic
+// Helper: capacity for a subset of IDs (e.g. only hybrid or only fundamental)
+const getCapacityForIds = (ids: string[], category: 'maker' | 'infantil') => {
     let furnitureCap = 0;
     let toolCap = 0;
-    
-    // Simple capacity calc based on IDs
     if (category === 'maker') {
-        if (selectedIds.includes('maker_padrao_24')) furnitureCap += 24;
-        if (selectedIds.includes('maker_up_12')) furnitureCap += 12;
-        if (selectedIds.includes('maker_up_6')) furnitureCap += 6;
-    } else if (category === 'midia') {
-        if (selectedIds.includes('midia_padrao_24')) furnitureCap += 24;
-        if (selectedIds.includes('midia_up_12')) furnitureCap += 12;
-        if (selectedIds.includes('midia_up_6')) furnitureCap += 6;
-    } else if (category === 'infantil') {
-        if (selectedIds.includes('infantil_padrao_18')) furnitureCap += 18;
-        if (selectedIds.includes('infantil_up_12')) furnitureCap += 12;
-        if (selectedIds.includes('infantil_up_6')) furnitureCap += 6;
+        if (ids.includes('maker_padrao_24')) furnitureCap += 24;
+        if (ids.includes('maker_up_12')) furnitureCap += 12;
+        if (ids.includes('maker_up_6')) furnitureCap += 6;
+        if (ids.includes('ls_hybrid_ambient_padrao_12')) furnitureCap += 12;
+        if (ids.includes('ls_hybrid_ambient_up_12')) furnitureCap += 12;
+        if (ids.includes('ls_hybrid_ambient_up_6')) furnitureCap += 6;
+        if (ids.includes('ls_fund_ambient_padrao_12')) furnitureCap += 12;
+        if (ids.includes('ls_fund_ambient_up_12')) furnitureCap += 12;
+        if (ids.includes('ls_fund_ambient_up_6')) furnitureCap += 6;
+        toolCap = furnitureCap;
+        if (ids.includes('maker_ferr_red_18')) toolCap = 18;
+        if (ids.includes('maker_minima')) { toolCap = 24; if (ids.includes('maker_ferr_red_18')) toolCap = 18; }
+        if (ids.includes('ls_hybrid_tools_infantil_12')) toolCap += 12;
+        if (ids.includes('ls_hybrid_tools_infantil_6')) toolCap += 6;
+    } else {
+        if (ids.includes('infantil_padrao_18')) furnitureCap += 18;
+        if (ids.includes('infantil_up_12')) furnitureCap += 12;
+        if (ids.includes('infantil_up_6')) furnitureCap += 6;
+        if (ids.includes('ls_inf_ambient_padrao_12')) furnitureCap += 18;
+        if (ids.includes('ls_inf_ambient_up_12')) furnitureCap += 12;
+        if (ids.includes('ls_inf_ambient_up_6')) furnitureCap += 6;
+        toolCap = furnitureCap;
+        if (ids.includes('infantil_carrinho') || ids.includes('ls_inf_carrinho')) {
+            toolCap = 18;
+            if (ids.includes('ls_inf_tools_up_6')) toolCap += 6;
+            if (ids.includes('ls_inf_tools_up_12')) toolCap += 12;
+        }
     }
+    return { num: furnitureCap || 0, numf: toolCap || 0 };
+};
 
-    toolCap = furnitureCap;
-    if (category === 'maker' && selectedIds.includes('maker_ferr_red_18')) toolCap = 18;
-    else if (category === 'maker' && selectedIds.includes('maker_minima')) {
-        toolCap = 24; 
-        if (selectedIds.includes('maker_ferr_red_18')) toolCap = 18;
-    }
-    if (category === 'infantil' && selectedIds.includes('infantil_carrinho')) {
-        toolCap = 18; 
-        if (selectedIds.includes('infantil_ferr_up_6')) toolCap += 6;
-        if (selectedIds.includes('infantil_ferr_up_12')) toolCap += 12;
-    }
-
-    const num = furnitureCap || 0;
-    const numf = toolCap || 0;
-    
-    const replacePlaceholders = (text: string) => text.replace(/{{num}}/g, num.toString()).replace(/{{numf}}/g, numf.toString());
-
+// Helper to determine text content based on selection (Replicated logic from ProposalView)
+const getProposalText = (category: CategoryType, selectedIds: string[], calculations: any, segmentIds?: string[]) => {
     let t: any = null;
+    const idsForChoice = segmentIds ?? selectedIds;
+    let capacityIds = idsForChoice;
 
     if (category === 'maker') {
-        const isMinima = selectedIds.includes('maker_minima');
-        const hasReduzida = selectedIds.includes('maker_ferr_red_18');
-        const hasPadrao = selectedIds.includes('maker_ferr_padrao');
-        const hasDigitais = selectedIds.includes('maker_ferr_digitais');
-        const hasPC = selectedIds.includes('maker_ferr_pc');
-        
-        if (isMinima) {
-            if (hasReduzida) t = PROPOSAL_TEXTS.maker_minima_reduzida;
-            else if (hasPadrao) t = PROPOSAL_TEXTS.maker_minima_padrao;
-            else t = PROPOSAL_TEXTS.maker_minima_solo;
-        } else {
-            if (hasPC && hasDigitais) t = PROPOSAL_TEXTS.maker_completa_pc;
-            else if (hasDigitais) t = PROPOSAL_TEXTS.maker_completa;
-            else t = PROPOSAL_TEXTS.maker_padrao;
+        const hasHybrid = idsForChoice.some(id => id.startsWith('ls_hybrid_'));
+        const hasFund = idsForChoice.some(id => id.startsWith('ls_fund_'));
+        const hybridOficina = idsForChoice.some(id => ['ls_hybrid_ambient_padrao_12', 'ls_hybrid_ambient_up_12', 'ls_hybrid_ambient_up_6'].includes(id));
+        const hybridMinima = idsForChoice.includes('ls_hybrid_ambient_minima') && !hybridOficina;
+        const fundOficina = idsForChoice.some(id => ['ls_fund_ambient_padrao_12', 'ls_fund_ambient_up_12', 'ls_fund_ambient_up_6'].includes(id));
+        const fundMinima = idsForChoice.includes('ls_fund_ambient_minima') && !fundOficina;
+        const hybridDigitais = idsForChoice.includes('ls_hybrid_tools_digitais');
+        const hybridPC = idsForChoice.includes('ls_hybrid_tools_pc');
+        const fundDigitais = idsForChoice.includes('ls_fund_tools_digitais');
+        const fundPC = idsForChoice.includes('ls_fund_tools_pc');
+        if (hasHybrid) {
+            if (hybridMinima) t = PROPOSAL_TEXTS.ls_hybrid_minima;
+            else if (hybridOficina) t = (hybridPC && hybridDigitais) ? PROPOSAL_TEXTS.ls_hybrid_oficina_completa_pc : hybridDigitais ? PROPOSAL_TEXTS.ls_hybrid_oficina_completa : PROPOSAL_TEXTS.ls_hybrid_oficina;
+        }
+        if (!t && hasFund) {
+            if (fundMinima) t = PROPOSAL_TEXTS.ls_fund_minima;
+            else if (fundOficina) t = (fundPC && fundDigitais) ? PROPOSAL_TEXTS.ls_fund_oficina_completa_pc : fundDigitais ? PROPOSAL_TEXTS.ls_fund_oficina_completa : PROPOSAL_TEXTS.ls_fund_oficina;
+        }
+        if (!t) {
+            const isMinima = idsForChoice.includes('maker_minima');
+            const hasReduzida = idsForChoice.includes('maker_ferr_red_18');
+            const hasPadrao = idsForChoice.includes('maker_ferr_padrao');
+            const hasDigitais = idsForChoice.includes('maker_ferr_digitais');
+            const hasPC = idsForChoice.includes('maker_ferr_pc');
+            if (isMinima) {
+                if (hasReduzida) t = PROPOSAL_TEXTS.maker_minima_reduzida;
+                else if (hasPadrao) t = PROPOSAL_TEXTS.maker_minima_padrao;
+                else t = PROPOSAL_TEXTS.maker_minima_solo;
+            } else {
+                if (hasPC && hasDigitais) t = PROPOSAL_TEXTS.maker_completa_pc;
+                else if (hasDigitais) t = PROPOSAL_TEXTS.maker_completa;
+                else t = PROPOSAL_TEXTS.maker_padrao;
+            }
         }
     } else if (category === 'midia') {
-        const hasPC = selectedIds.includes('midia_ferr_pc');
+        const hasPC = idsForChoice.includes('midia_ferr_pc');
         t = hasPC ? PROPOSAL_TEXTS.midia_com_computadores : PROPOSAL_TEXTS.midia_padrao;
     } else if (category === 'infantil') {
-         if (selectedIds.includes('infantil_carrinho')) t = PROPOSAL_TEXTS.infantil_carrinho;
+         if (idsForChoice.includes('infantil_carrinho') || idsForChoice.includes('ls_inf_carrinho')) t = PROPOSAL_TEXTS.infantil_carrinho;
+         else if (idsForChoice.includes('ls_inf_ambient_minima') && !idsForChoice.includes('ls_inf_ambient_padrao_12') && !idsForChoice.includes('ls_inf_ambient_up_12') && !idsForChoice.includes('ls_inf_ambient_up_6')) t = PROPOSAL_TEXTS.ls_inf_minima;
+         else if (idsForChoice.includes('ls_inf_ambient_padrao_12') || idsForChoice.includes('ls_inf_ambient_up_12') || idsForChoice.includes('ls_inf_ambient_up_6')) t = PROPOSAL_TEXTS.ls_inf_oficina;
          else t = PROPOSAL_TEXTS.infantil_oficina;
     }
 
     if (!t) return null;
+
+    const { num, numf } = getCapacityForIds(capacityIds, category === 'midia' ? 'maker' : category);
+    const replacePlaceholders = (text: string) => text.replace(/{{num}}/g, num.toString()).replace(/{{numf}}/g, numf.toString());
 
     return {
         title: replacePlaceholders(t.title),
@@ -94,7 +120,11 @@ export const createGoogleSlidePresentation = async (
   appState: AppState,
   calculations: any
 ) => {
-  const { client, commercial, selectedInfraIds } = appState;
+  const { client, commercial, selectedInfraIds, learningSpaceInfra } = appState;
+  const isLearningSpace = client.clientType === 'Espaço de Aprendizagem';
+  const selectedInfraIdsEffective = isLearningSpace && learningSpaceInfra
+    ? [...(learningSpaceInfra.hybrid || []), ...(learningSpaceInfra.fundamental || []), ...(learningSpaceInfra.infantil || [])]
+    : selectedInfraIds;
   const LOGO_URL = getLogoUrl();
   
   // 1. Create Presentation
@@ -260,20 +290,47 @@ export const createGoogleSlidePresentation = async (
 
 
   // --- SLIDE 2: INFRAESTRUTURA PROPOSTA (NOVO) ---
-  // Gather contents
   const scopeContents: any[] = [];
-  ['infantil', 'maker', 'midia'].forEach(cat => {
-      // Check if any item of this category is selected
-      const hasItem = selectedInfraIds.some(id => {
-          const item = INFRA_CATALOG.find(i => i.id === id);
-          return item && item.category === cat;
-      });
-      
-      if (hasItem) {
-          const textData = getProposalText(cat as CategoryType, selectedInfraIds, calculations);
-          if (textData) scopeContents.push({ ...textData, category: cat });
+  const hybridIdsForScope = learningSpaceInfra?.hybrid || [];
+  const fundamentalIdsForScope = learningSpaceInfra?.fundamental || [];
+
+  if (isLearningSpace) {
+      if (hybridIdsForScope.length > 0) {
+          const textData = getProposalText('maker' as CategoryType, selectedInfraIdsEffective, calculations, hybridIdsForScope);
+          if (textData) scopeContents.push({ ...textData, category: 'maker' });
       }
-  });
+      if (fundamentalIdsForScope.length > 0) {
+          const textData = getProposalText('maker' as CategoryType, selectedInfraIdsEffective, calculations, fundamentalIdsForScope);
+          if (textData) scopeContents.push({ ...textData, category: 'maker' });
+      }
+      const hasInfantilItem = selectedInfraIdsEffective.some(id => {
+          const item = INFRA_CATALOG.find(i => i.id === id);
+          return item && item.category === 'infantil';
+      });
+      if (hasInfantilItem) {
+          const textData = getProposalText('infantil' as CategoryType, selectedInfraIdsEffective, calculations);
+          if (textData) scopeContents.push({ ...textData, category: 'infantil' });
+      }
+      const hasMidiaItem = selectedInfraIdsEffective.some(id => {
+          const item = INFRA_CATALOG.find(i => i.id === id);
+          return item && item.category === 'midia';
+      });
+      if (hasMidiaItem) {
+          const textData = getProposalText('midia' as CategoryType, selectedInfraIdsEffective, calculations);
+          if (textData) scopeContents.push({ ...textData, category: 'midia' });
+      }
+  } else {
+      ['infantil', 'maker', 'midia'].forEach(cat => {
+          const hasItem = selectedInfraIdsEffective.some(id => {
+              const item = INFRA_CATALOG.find(i => i.id === id);
+              return item && item.category === cat;
+          });
+          if (hasItem) {
+              const textData = getProposalText(cat as CategoryType, selectedInfraIdsEffective, calculations);
+              if (textData) scopeContents.push({ ...textData, category: cat });
+          }
+      });
+  }
 
   // Always create the slide
   const scopeId = addSlide();
@@ -471,10 +528,12 @@ export const createGoogleSlidePresentation = async (
   // Title in Header
   addText(valuesId, "Condições Comerciais", 140, 15, 560, 20, 18, WHITE, true, 'END', 'MIDDLE');
 
-  // Subtitle Logic
+  // Subtitle Logic (EA: sem contrato 3 anos, Marketplace nem bônus) - isLearningSpace já definido no início da função
   let subtitleText = "";
   const comm = calculations.commercial;
-  if (comm.contractDuration === 1) {
+  if (isLearningSpace) {
+      subtitleText = "Assinatura mensal (Material do Aluno)";
+  } else if (comm.contractDuration === 1) {
       subtitleText = "Contrato de 1 ano";
   } else if (comm.contractDuration === 3) {
       if (!comm.useMarketplace) {
@@ -500,9 +559,9 @@ export const createGoogleSlidePresentation = async (
   const infraFinal = calculations.totalInfraNet;
   const parcelas = calculations.infraInstallment;
 
-  // Dynamic Asterisk Logic (Replicated from ProposalView)
-  const showMaterialNote = comm.useMarketplace || (comm.contractDuration === 3 && !comm.applyInfraBonus);
-  const showInfraBonusNote = comm.contractDuration === 3 && comm.applyInfraBonus && calculations.hasInfraItems && comm.useMarketplace;
+  // Dynamic Asterisk Logic (EA não tem contrato/Marketplace/bônus)
+  const showMaterialNote = !isLearningSpace && (comm.useMarketplace || (comm.contractDuration === 3 && !comm.applyInfraBonus));
+  const showInfraBonusNote = !isLearningSpace && comm.contractDuration === 3 && comm.applyInfraBonus && calculations.hasInfraItems && comm.useMarketplace;
   const showRegionNote = calculations.hasInfraItems;
 
   let symbolCounter = 1;
@@ -515,15 +574,153 @@ export const createGoogleSlidePresentation = async (
   const formatCurrency = (val: number) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(val);
 
   // --- LEFT TABLE (Material) ---
-  // If no infra, center this table.
-  // Standard Left X = 40. Center X = (720 - 300) / 2 = 210.
   const leftW = 300;
   const leftX = calculations.hasInfraItems ? 40 : 210;
-  const leftY = 110; // Moved down further
+  const leftY = 110;
   const headerH = 20;
   const rowH = 25;
-  
-  // Composite Header (Green) - Rounded Top, Straight Bottom
+
+  if (isLearningSpace) {
+      // EA: tabela Planos Flexíveis — mesmo padrão do painel: título, sem coluna de rótulos, rótulo em cada célula, sem Referência de upgrade, destaque coluna recomendada; barra só cantos superiores arredondados
+      const planTableW = 320;
+      const planTableX = calculations.hasInfraItems ? 40 : (720 - planTableW) / 2;
+      const planColW = planTableW / 3;
+      const planRowH = 24;
+      const planHeaderVisibleH = 20;
+      const planBodyY = leftY + planHeaderVisibleH;
+      const planTheadRowH = 28;
+      const planDataRows = 3;
+      const planTableBottomMargin = 24;
+      const planBodyH = planTheadRowH + planDataRows * planRowH + planTableBottomMargin;
+      const GREEN_TINT = { red: 0.92, green: 0.96, blue: 0.88 };
+      const recommendedCol = getRecommendedPlanIndexForStudents(totalStudents);
+
+      // Barra de título: só cantos superiores arredondados (igual tabelas escola)
+      const planHeaderRoundId = `plan_header_round_${valuesId}`;
+      requests.push({
+          createShape: {
+              objectId: planHeaderRoundId,
+              shapeType: 'ROUND_RECTANGLE',
+              elementProperties: {
+                  pageObjectId: valuesId,
+                  size: { width: { magnitude: planTableW, unit: 'PT' }, height: { magnitude: 40, unit: 'PT' } },
+                  transform: { scaleX: 1, scaleY: 1, translateX: planTableX, translateY: leftY, unit: 'PT' }
+              }
+          }
+      });
+      requests.push({ updateShapeProperties: { objectId: planHeaderRoundId, shapeProperties: { shapeBackgroundFill: { solidFill: { color: { rgbColor: GREEN } } }, outline: { propertyState: 'NOT_RENDERED' } }, fields: 'shapeBackgroundFill,outline' } });
+      const planHeaderStraightId = `plan_header_straight_${valuesId}`;
+      requests.push({
+          createShape: {
+              objectId: planHeaderStraightId,
+              shapeType: 'RECTANGLE',
+              elementProperties: {
+                  pageObjectId: valuesId,
+                  size: { width: { magnitude: planTableW, unit: 'PT' }, height: { magnitude: 10, unit: 'PT' } },
+                  transform: { scaleX: 1, scaleY: 1, translateX: planTableX, translateY: leftY + 10, unit: 'PT' }
+              }
+          }
+      });
+      requests.push({ updateShapeProperties: { objectId: planHeaderStraightId, shapeProperties: { shapeBackgroundFill: { solidFill: { color: { rgbColor: GREEN } } }, outline: { propertyState: 'NOT_RENDERED' } }, fields: 'shapeBackgroundFill,outline' } });
+      addText(valuesId, "Planos Flexíveis", planTableX, leftY, planTableW, planHeaderVisibleH, 10, WHITE, true, 'CENTER', 'MIDDLE');
+
+      // Corpo: cantos inferiores arredondados (mesmo padrão escola)
+      const planBodyCapH = 20;
+      const planBodyBottomId = `plan_body_bottom_${valuesId}`;
+      requests.push({
+          createShape: {
+              objectId: planBodyBottomId,
+              shapeType: 'ROUND_RECTANGLE',
+              elementProperties: {
+                  pageObjectId: valuesId,
+                  size: { width: { magnitude: planTableW, unit: 'PT' }, height: { magnitude: planBodyCapH, unit: 'PT' } },
+                  transform: { scaleX: 1, scaleY: 1, translateX: planTableX, translateY: planBodyY + planBodyH - planBodyCapH, unit: 'PT' }
+              }
+          }
+      });
+      requests.push({ updateShapeProperties: { objectId: planBodyBottomId, shapeProperties: { shapeBackgroundFill: { solidFill: { color: { rgbColor: { red: 0.95, green: 0.95, blue: 0.95 } } } }, outline: { propertyState: 'NOT_RENDERED' } }, fields: 'shapeBackgroundFill,outline' } });
+      const planBodyMainId = `plan_body_main_${valuesId}`;
+      requests.push({
+          createShape: {
+              objectId: planBodyMainId,
+              shapeType: 'RECTANGLE',
+              elementProperties: {
+                  pageObjectId: valuesId,
+                  size: { width: { magnitude: planTableW, unit: 'PT' }, height: { magnitude: planBodyH - (planBodyCapH / 2), unit: 'PT' } },
+                  transform: { scaleX: 1, scaleY: 1, translateX: planTableX, translateY: planBodyY, unit: 'PT' }
+              }
+          }
+      });
+      requests.push({ updateShapeProperties: { objectId: planBodyMainId, shapeProperties: { shapeBackgroundFill: { solidFill: { color: { rgbColor: { red: 0.95, green: 0.95, blue: 0.95 } } } }, outline: { propertyState: 'NOT_RENDERED' } }, fields: 'shapeBackgroundFill,outline' } });
+
+      // Linha de cabeçalho (nomes dos planos + perfil) — fundo cinza
+      const planTheadBgId = `plan_thead_${valuesId}`;
+      requests.push({
+          createShape: {
+              objectId: planTheadBgId,
+              shapeType: 'RECTANGLE',
+              elementProperties: {
+                  pageObjectId: valuesId,
+                  size: { width: { magnitude: planTableW, unit: 'PT' }, height: { magnitude: planTheadRowH, unit: 'PT' } },
+                  transform: { scaleX: 1, scaleY: 1, translateX: planTableX, translateY: planBodyY, unit: 'PT' }
+              }
+          }
+      });
+      requests.push({ updateShapeProperties: { objectId: planTheadBgId, shapeProperties: { shapeBackgroundFill: { solidFill: { color: { rgbColor: { red: 0.94, green: 0.94, blue: 0.96 } } } }, outline: { propertyState: 'NOT_RENDERED' } }, fields: 'shapeBackgroundFill,outline' } });
+
+      SUBSCRIPTION_PLANS_EA.forEach((p, colIdx) => {
+          const cx = planTableX + colIdx * planColW;
+          const isRec = colIdx === recommendedCol;
+          if (isRec) {
+              const recTheadId = `plan_thead_rec_${valuesId}_${colIdx}`;
+              requests.push({
+                  createShape: {
+                      objectId: recTheadId,
+                      shapeType: 'RECTANGLE',
+                      elementProperties: {
+                          pageObjectId: valuesId,
+                          size: { width: { magnitude: planColW, unit: 'PT' }, height: { magnitude: planTheadRowH, unit: 'PT' } },
+                          transform: { scaleX: 1, scaleY: 1, translateX: cx, translateY: planBodyY, unit: 'PT' }
+                      }
+                  }
+              });
+              requests.push({ updateShapeProperties: { objectId: recTheadId, shapeProperties: { shapeBackgroundFill: { solidFill: { color: { rgbColor: GREEN_TINT } } }, outline: { propertyState: 'NOT_RENDERED' } }, fields: 'shapeBackgroundFill,outline' } });
+          }
+          addText(valuesId, p.name + (isRec ? ' *' : ''), cx + 4, planBodyY + 2, planColW - 8, 12, 9, BLACK, true, 'CENTER', 'MIDDLE');
+          addText(valuesId, p.perfil, cx + 4, planBodyY + 14, planColW - 8, 10, 6, { red: 0.4, green: 0.4, blue: 0.4 }, false, 'CENTER', 'MIDDLE');
+      });
+
+      const dataRows: { label: string; getVal: (p: typeof SUBSCRIPTION_PLANS_EA[number]) => string }[] = [
+          { label: 'MENSAL FIXO', getVal: p => formatCurrency(p.mensalFixo) },
+          { label: 'TOTAL DE ALUNOS INCLUSOS', getVal: p => String(p.alunosInclusos) },
+          { label: 'ALUNO ADICIONAL / MÊS', getVal: p => formatCurrency(p.alunoAdicionalMes) }
+      ];
+      dataRows.forEach((row, rowIdx) => {
+          const y = planBodyY + planTheadRowH + rowIdx * planRowH;
+          SUBSCRIPTION_PLANS_EA.forEach((p, colIdx) => {
+              const cx = planTableX + colIdx * planColW;
+              const isRec = colIdx === recommendedCol;
+              if (isRec) {
+                  const recCellId = `plan_cell_rec_${valuesId}_${rowIdx}_${colIdx}`;
+                  requests.push({
+                      createShape: {
+                          objectId: recCellId,
+                          shapeType: 'RECTANGLE',
+                          elementProperties: {
+                              pageObjectId: valuesId,
+                              size: { width: { magnitude: planColW, unit: 'PT' }, height: { magnitude: planRowH, unit: 'PT' } },
+                              transform: { scaleX: 1, scaleY: 1, translateX: cx, translateY: y, unit: 'PT' }
+                          }
+                      }
+                  });
+                  requests.push({ updateShapeProperties: { objectId: recCellId, shapeProperties: { shapeBackgroundFill: { solidFill: { color: { rgbColor: GREEN_TINT } } }, outline: { propertyState: 'NOT_RENDERED' } }, fields: 'shapeBackgroundFill,outline' } });
+              }
+              addText(valuesId, row.label, cx + 4, y + 2, planColW - 8, 10, 5, { red: 0.45, green: 0.45, blue: 0.45 }, false, 'CENTER', 'MIDDLE');
+              addText(valuesId, row.getVal(p), cx + 4, y + 12, planColW - 8, planRowH - 14, 9, BLACK, true, 'CENTER', 'MIDDLE');
+          });
+      });
+  } else {
+  // Composite Header (Green) - Escola
   const leftHeaderRoundId = `left_header_round_${valuesId}`;
   requests.push({
       createShape: {
@@ -531,7 +728,7 @@ export const createGoogleSlidePresentation = async (
           shapeType: 'ROUND_RECTANGLE',
           elementProperties: {
               pageObjectId: valuesId,
-              size: { width: { magnitude: leftW, unit: 'PT' }, height: { magnitude: 40, unit: 'PT' } }, // Height 40 for radius 20
+              size: { width: { magnitude: leftW, unit: 'PT' }, height: { magnitude: 40, unit: 'PT' } },
               transform: { scaleX: 1, scaleY: 1, translateX: leftX, translateY: leftY, unit: 'PT' }
           }
       }
@@ -545,7 +742,7 @@ export const createGoogleSlidePresentation = async (
           shapeType: 'RECTANGLE',
           elementProperties: {
               pageObjectId: valuesId,
-              size: { width: { magnitude: leftW, unit: 'PT' }, height: { magnitude: 10, unit: 'PT' } }, // Cover bottom half (10pt)
+              size: { width: { magnitude: leftW, unit: 'PT' }, height: { magnitude: 10, unit: 'PT' } },
               transform: { scaleX: 1, scaleY: 1, translateX: leftX, translateY: leftY + 10, unit: 'PT' }
           }
       }
@@ -554,14 +751,10 @@ export const createGoogleSlidePresentation = async (
 
   addText(valuesId, "Material do Aluno", leftX, leftY, leftW, headerH, 10, WHITE, true, 'CENTER', 'MIDDLE');
 
-  // Composite Body (Gray) - Straight Top, Rounded Bottom
-  // Rows: Total, Inv/Ano, Inv/Mês. (3 rows * 25 = 75pt).
   const leftBodyH = 75;
   const leftBodyY = leftY + headerH;
-  
-  // 1. Bottom Round Rect (Gray)
-  const leftBodyBottomId = `left_body_bottom_${valuesId}`;
   const leftBodyCapH = 20;
+  const leftBodyBottomId = `left_body_bottom_${valuesId}`;
   requests.push({
       createShape: {
           objectId: leftBodyBottomId,
@@ -575,7 +768,6 @@ export const createGoogleSlidePresentation = async (
   });
   requests.push({ updateShapeProperties: { objectId: leftBodyBottomId, shapeProperties: { shapeBackgroundFill: { solidFill: { color: { rgbColor: {red: 0.95, green: 0.95, blue: 0.95} } } }, outline: { propertyState: 'NOT_RENDERED' } }, fields: 'shapeBackgroundFill,outline' } });
 
-  // 2. Main Rect (Gray) - Covers top
   const leftBodyMainId = `left_body_main_${valuesId}`;
   requests.push({
       createShape: {
@@ -590,7 +782,6 @@ export const createGoogleSlidePresentation = async (
   });
   requests.push({ updateShapeProperties: { objectId: leftBodyMainId, shapeProperties: { shapeBackgroundFill: { solidFill: { color: { rgbColor: {red: 0.95, green: 0.95, blue: 0.95} } } }, outline: { propertyState: 'NOT_RENDERED' } }, fields: 'shapeBackgroundFill,outline' } });
 
-  // Rows
   const leftRows = [
       { label: "Total de Alunos", value: totalStudents.toString(), bold: false, color: BLACK },
       { label: `Investimento Aluno/Ano ${materialSymbol}`, value: formatCurrency(materialYear), bold: false, color: BLACK },
@@ -607,24 +798,23 @@ export const createGoogleSlidePresentation = async (
                 shapeType: 'RECTANGLE',
                 elementProperties: {
                     pageObjectId: valuesId,
-                    size: { width: { magnitude: leftW, unit: 'PT' }, height: { magnitude: rowH, unit: 'PT' } }, // Full width
+                    size: { width: { magnitude: leftW, unit: 'PT' }, height: { magnitude: rowH, unit: 'PT' } },
                     transform: { scaleX: 1, scaleY: 1, translateX: leftX, translateY: y, unit: 'PT' }
                 }
             }
          });
-         // Light Green Background
          requests.push({ updateShapeProperties: { objectId: hlId, shapeProperties: { shapeBackgroundFill: { solidFill: { color: { rgbColor: {red: 0.92, green: 0.96, blue: 0.88} } } }, outline: { propertyState: 'NOT_RENDERED' } }, fields: 'shapeBackgroundFill,outline' } });
       }
       addText(valuesId, row.label, leftX + 10, y, leftW / 2, rowH, 9, BLACK, row.bold, 'START', 'MIDDLE');
       addText(valuesId, row.value, leftX + (leftW / 2), y, (leftW / 2) - 10, rowH, row.highlight ? 11 : 10, row.color || BLACK, row.bold, 'END', 'MIDDLE');
   });
-  
-  // Bonus Outside (Conditional)
+
   if (calculations.materialDiscountAmount > 0) {
       const bonusY = leftBodyY + leftBodyH + 5;
       const bonusRow = { label: calculations.materialBonusText, value: "- " + formatCurrency(calculations.materialDiscountAmount), bold: false, color: GREEN };
       addText(valuesId, bonusRow.label, leftX + 10, bonusY, leftW / 2, rowH, 9, BLACK, false, 'START', 'MIDDLE');
       addText(valuesId, bonusRow.value, leftX + (leftW / 2), bonusY, (leftW / 2) - 10, rowH, 10, GREEN, false, 'END', 'MIDDLE');
+  }
   }
 
 
@@ -663,7 +853,7 @@ export const createGoogleSlidePresentation = async (
       });
       requests.push({ updateShapeProperties: { objectId: rightHeaderStraightId, shapeProperties: { shapeBackgroundFill: { solidFill: { color: { rgbColor: GREEN } } }, outline: { propertyState: 'NOT_RENDERED' } }, fields: 'shapeBackgroundFill,outline' } });
 
-      addText(valuesId, "Infraestrutura (Ambientação e Ferramentas)", rightX, rightY, rightW, 20, 10, WHITE, true, 'CENTER', 'MIDDLE');
+      addText(valuesId, isLearningSpace ? "Infraestrutura (Ambientação e Ferramentas) **" : "Infraestrutura (Ambientação e Ferramentas)", rightX, rightY, rightW, 20, 10, WHITE, true, 'CENTER', 'MIDDLE');
 
       // Rows
       interface RowItem {
@@ -769,10 +959,16 @@ export const createGoogleSlidePresentation = async (
   if (showInfraBonusNote) {
       footnotes.push(`${infraBonusSymbol} Desconto para contrato de 3 anos aplicado no valor da infraestrutura. É necessário comprovar quantitativo de aluno atual equivalente à proposta.`);
   }
+
+  if (isLearningSpace) {
+      footnotes.push(`* Melhor plano para simulação de ${totalStudents} alunos`);
+      if (calculations.hasInfraItems) footnotes.push(`** Valores conforme itens selecionados na proposta.`);
+  }
   
   // Removed "Proposta válida..." from here as it moved to cover
 
-  addText(valuesId, footnotes.join('\n'), 40, 280, 640, 100, 8, GRAY);
+  const footnoteY = isLearningSpace ? 300 : 280;
+  addText(valuesId, footnotes.join('\n'), 40, footnoteY, 640, 100, 8, GRAY);
 
   requests.push({
     createShape: {
@@ -830,28 +1026,29 @@ export const createGoogleSlidePresentation = async (
   const categories: CategoryType[] = ['maker', 'midia', 'infantil'];
   
   categories.forEach(cat => {
-      const items = selectedInfraIds.filter(id => {
+      const items = selectedInfraIdsEffective.filter(id => {
           const infraItem = INFRA_CATALOG.find(i => i.id === id);
           return infraItem && infraItem.category === cat;
       });
 
       if (items.length === 0) return;
 
-      // Get Title from Scope Logic to match exactly
-      const textData = getProposalText(cat as CategoryType, selectedInfraIds, calculations);
+      const textData = getProposalText(cat as CategoryType, selectedInfraIdsEffective, calculations);
       const catTitle = textData ? textData.title : (cat === 'maker' ? 'Espaço Maker' : cat === 'midia' ? 'Sala de Mídia' : 'Espaço Infantil');
 
       const slideId = addSpecSlide(cat, catTitle);
 
-      // Determine Image URL
       let imgUrl = "";
       if (cat === 'maker') {
-        if (selectedInfraIds.includes('maker_minima')) imgUrl = AMBIENTATION_IMAGES['maker_minima'];
+        const hasHybridOficina = selectedInfraIdsEffective.some(id => ['ls_hybrid_ambient_padrao_12', 'ls_hybrid_ambient_up_12', 'ls_hybrid_ambient_up_6'].includes(id));
+        const hasHybridMinima = selectedInfraIdsEffective.includes('ls_hybrid_ambient_minima') && !hasHybridOficina;
+        if (hasHybridOficina) imgUrl = AMBIENTATION_IMAGES['ls_hybrid_oficina'];
+        else if (hasHybridMinima || selectedInfraIdsEffective.includes('maker_minima')) imgUrl = AMBIENTATION_IMAGES['maker_minima'];
         else imgUrl = AMBIENTATION_IMAGES['maker_padrao'];
       } else if (cat === 'midia') {
         imgUrl = AMBIENTATION_IMAGES['midia_padrao'];
       } else if (cat === 'infantil') {
-        if (selectedInfraIds.includes('infantil_carrinho')) imgUrl = AMBIENTATION_IMAGES['infantil_carrinho'];
+        if (selectedInfraIdsEffective.includes('infantil_carrinho') || selectedInfraIdsEffective.includes('ls_inf_carrinho')) imgUrl = AMBIENTATION_IMAGES['infantil_carrinho'];
         else imgUrl = AMBIENTATION_IMAGES['infantil_oficina'];
       }
 
@@ -928,12 +1125,12 @@ export const createGoogleSlidePresentation = async (
       const col1Lines = allLines.slice(0, half).join('\n');
       const col2Lines = allLines.slice(half).join('\n');
       
-      // Columns Positions
-      // Width 6.2cm = 176pt
+      // Columns Positions (0.2 cm = ~5.67 pt)
+      const cm02 = 0.2 * (72 / 2.54);
       const colW = 176;
-      const col1X = 360; 
-      const col2X = 360 + colW + 10; // 546
-      const textY = 85; // Below Subtitle (60 + 20 + 5)
+      const col1X = 360;
+      const col2X = 360 + colW + 10 - cm02; // 0.2 cm à esquerda na 2ª coluna
+      const textY = 85 - cm02; // 0.2 cm para cima nas duas colunas
 
       // Add Columns Text (Small Font 6pt, line spacing 1.0)
       const col1Id = addText(slideId, col1Lines, col1X, textY, colW, 300, 6, GRAY);

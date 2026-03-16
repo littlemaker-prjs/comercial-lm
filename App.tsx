@@ -5,7 +5,7 @@ import { WorkshopPanel } from './components/WorkshopPanel';
 import { ProposalView } from './components/ProposalView';
 import { LoginScreen } from './components/LoginScreen';
 import { Dashboard } from './components/Dashboard';
-import { AppState } from './types';
+import { AppState, LearningSpaceInfraSelection } from './types';
 import { INITIAL_APP_STATE, SUPER_ADMINS } from './constants';
 import { LayoutDashboard, FileText, User, ArrowLeft, Loader2, Save, CheckCircle, AlertCircle, X } from 'lucide-react';
 import { auth, db } from './firebase';
@@ -21,7 +21,6 @@ enum Step {
 function App() {
   const { settings } = useSettings(); // Use Global Settings
   const [firebaseUser, setFirebaseUser] = useState<firebase.User | null>(null);
-  const [offlineUser, setOfflineUser] = useState<any | null>(null);
   const [authLoading, setAuthLoading] = useState(true);
   const [googleAccessToken, setGoogleAccessToken] = useState<string | null>(() => {
       return sessionStorage.getItem('googleAccessToken');
@@ -30,8 +29,7 @@ function App() {
   // Master Role State
   const [isMaster, setIsMaster] = useState(false);
 
-  const activeUser = firebaseUser || offlineUser;
-  const isOffline = !!offlineUser && !firebaseUser;
+  const activeUser = firebaseUser;
 
   const [viewMode, setViewMode] = useState<'dashboard' | 'editor'>('dashboard');
   const [currentStep, setCurrentStep] = useState<Step>(Step.START);
@@ -55,11 +53,6 @@ function App() {
             const emailLower = activeUser.email.toLowerCase();
             const isSuper = SUPER_ADMINS.includes(emailLower);
             
-            if (isOffline) {
-                setIsMaster(isSuper);
-                return;
-            }
-
             try {
                 const userRef = db.collection('users').doc(emailLower);
                 const doc = await userRef.get();
@@ -89,7 +82,7 @@ function App() {
     };
 
     checkAndSyncUser();
-  }, [activeUser, isOffline]);
+  }, [activeUser]);
 
   useEffect(() => {
       if (notification) {
@@ -101,19 +94,10 @@ function App() {
   const handleLogout = () => {
     if (firebaseUser) auth.signOut();
     setFirebaseUser(null);
-    setOfflineUser(null);
     sessionStorage.removeItem('googleAccessToken');
     sessionStorage.removeItem('googleTokenTimestamp');
     setViewMode('dashboard');
     setIsMaster(false);
-  };
-
-  const handleOfflineLogin = (email: string) => {
-      setOfflineUser({
-          uid: 'guest-' + email.replace(/[^a-zA-Z0-9]/g, ''),
-          displayName: email.split('@')[0],
-          email: email
-      });
   };
 
   const startNewProposal = () => {
@@ -148,31 +132,18 @@ function App() {
         const payload = {
             userId: activeUser.uid,
             userEmail: activeUser.email,
-            updatedAt: isOffline ? { seconds: Math.floor(Date.now() / 1000) } : firebase.firestore.FieldValue.serverTimestamp(),
+            updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
             data: cleanData,
             schoolName: appState.client.schoolName || 'Sem nome'
         };
 
-        if (isOffline) {
-            const existing = localStorage.getItem('offline_proposals');
-            let proposals = existing ? JSON.parse(existing) : [];
-            let localId = currentProposalId || `local_${Date.now()}`;
-            
-            proposals = proposals.filter((p: any) => p.id !== localId);
-            proposals.push({ id: localId, ...payload });
-            localStorage.setItem('offline_proposals', JSON.stringify(proposals));
-            
-            setCurrentProposalId(localId);
-            showNotification('Salvo localmente!', 'success');
+        if (currentProposalId && !currentProposalId.startsWith('local_')) {
+            await db.collection('proposals').doc(currentProposalId).set(payload, { merge: true });
+            showNotification('Proposta atualizada!', 'success');
         } else {
-            if (currentProposalId && !currentProposalId.startsWith('local_')) {
-                await db.collection('proposals').doc(currentProposalId).set(payload, { merge: true });
-                showNotification('Proposta atualizada no Firebase!', 'success');
-            } else {
-                const docRef = await db.collection('proposals').add(payload);
-                setCurrentProposalId(docRef.id);
-                showNotification('Proposta criada no Firebase!', 'success');
-            }
+            const docRef = await db.collection('proposals').add(payload);
+            setCurrentProposalId(docRef.id);
+            showNotification('Proposta criada!', 'success');
         }
         
         if (redirect) {
@@ -235,24 +206,67 @@ function App() {
     return selection;
   };
 
+  const getDefaultLearningSpaceInfra = (segments: string[]): LearningSpaceInfraSelection => {
+    const hasEI = segments.includes('Educação Infantil');
+    const hasAnosFinaisOuMedio = segments.includes('Ens. Fundamental Anos Finais') || segments.includes('Ensino Médio');
+    const hasOutroQueInfantil = segments.some(s => s !== 'Educação Infantil');
+
+    if (hasEI && !hasOutroQueInfantil) {
+      return {
+        hybrid: [],
+        fundamental: [],
+        infantil: ['ls_inf_ambient_padrao_12', 'ls_inf_tools_12']
+      };
+    }
+    if (hasEI && hasOutroQueInfantil) {
+      const hybrid: string[] = ['ls_hybrid_ambient_padrao_12', 'ls_hybrid_tools_padrao'];
+      if (hasAnosFinaisOuMedio) hybrid.push('ls_hybrid_tools_digitais');
+      return {
+        hybrid,
+        fundamental: [],
+        infantil: []
+      };
+    }
+    if (!hasEI && hasOutroQueInfantil) {
+      const fundamental: string[] = ['ls_fund_ambient_padrao_12', 'ls_fund_tools_padrao'];
+      if (hasAnosFinaisOuMedio) fundamental.push('ls_fund_tools_digitais');
+      return {
+        hybrid: [],
+        fundamental,
+        infantil: []
+      };
+    }
+    return { hybrid: [], fundamental: [], infantil: [] };
+  };
+
   const handleStartNext = () => {
-    if (!currentProposalId || appState.selectedInfraIds.length === 0) {
-         const recommendedInfra = calculateRecommendedInfra(appState.commercial.totalStudents, appState.client.segments);
-         setAppState(prev => ({ ...prev, selectedInfraIds: recommendedInfra }));
+    if (appState.client.clientType === 'Espaço de Aprendizagem') {
+      const ls = appState.learningSpaceInfra;
+      const isEmpty = !ls || (ls.hybrid.length === 0 && ls.fundamental.length === 0 && ls.infantil.length === 0);
+      if (isEmpty) {
+        const defaultLS = getDefaultLearningSpaceInfra(appState.client.segments);
+        setAppState(prev => ({ ...prev, learningSpaceInfra: defaultLS }));
+      }
+    } else {
+      if (!currentProposalId || appState.selectedInfraIds.length === 0) {
+        const recommendedInfra = calculateRecommendedInfra(appState.commercial.totalStudents, appState.client.segments);
+        setAppState(prev => ({ ...prev, selectedInfraIds: recommendedInfra }));
+      }
     }
     setCurrentStep(Step.WORKSHOPS);
   };
 
   const calculateSummary = () => {
       const totalStudents = appState.commercial.totalStudents;
-      // USE SETTINGS CATALOG
-      const selectedItems = settings.infraCatalog.filter(i => appState.selectedInfraIds.includes(i.id));
-      
+      const isLS = appState.client.clientType === 'Espaço de Aprendizagem';
+      const effectiveIds = isLS && appState.learningSpaceInfra
+        ? [...(appState.learningSpaceInfra.hybrid || []), ...(appState.learningSpaceInfra.fundamental || []), ...(appState.learningSpaceInfra.infantil || [])]
+        : appState.selectedInfraIds;
+      const selectedItems = settings.infraCatalog.filter(i => effectiveIds.includes(i.id));
       const activeTypes: string[] = [];
       if (selectedItems.some(i => i.category === 'maker')) activeTypes.push("Maker");
       if (selectedItems.some(i => i.category === 'midia')) activeTypes.push("Mídia");
       if (selectedItems.some(i => i.category === 'infantil')) activeTypes.push("Infantil");
-
       return { totalStudents, activeTypes };
   };
 
@@ -265,7 +279,7 @@ function App() {
   );
 
   if (authLoading) return <div className="h-screen flex items-center justify-center bg-slate-50"><Loader2 className="w-10 h-10 text-[#71477A] animate-spin" /></div>;
-  if (!activeUser) return <LoginScreen onOfflineLogin={handleOfflineLogin} onGoogleLoginSuccess={setGoogleAccessToken} />;
+  if (!activeUser) return <LoginScreen onGoogleLoginSuccess={setGoogleAccessToken} />;
   
   if (viewMode === 'dashboard') {
       return (
@@ -274,7 +288,6 @@ function App() {
             onLoadProposal={loadProposal} 
             onLogout={handleLogout} 
             user={activeUser} 
-            isOffline={isOffline}
             isMaster={isMaster}
         />
       );

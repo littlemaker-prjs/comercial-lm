@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { AppState, CategoryType } from '../types';
 import { Download, CheckSquare, Edit3, Presentation, Loader2 } from 'lucide-react';
 import { useSettings } from '../contexts/SettingsContext';
-import { PROPOSAL_TEXTS, INFRA_DETAILS, AMBIENTATION_IMAGES } from '../constants';
+import { PROPOSAL_TEXTS, INFRA_DETAILS, AMBIENTATION_IMAGES, SUBSCRIPTION_PLANS_EA, getSubscriptionMonthlyForStudents, getRecommendedPlanIndexForStudents } from '../constants';
 import PptxGenJS from 'pptxgenjs';
 import { auth, googleProvider } from '../firebase';
 import { createGoogleSlidePresentation } from '../utils/googleSlides';
@@ -21,12 +21,17 @@ interface ProposalViewProps {
 
 export const ProposalView: React.FC<ProposalViewProps> = ({ appState, setAppState, onSave, isSaving, user, isMaster, googleAccessToken }) => {
   const { settings } = useSettings();
-  const { selectedInfraIds, regionId, commercial } = appState;
+  const { selectedInfraIds, regionId, commercial, learningSpaceInfra, client } = appState;
   const [editingField, setEditingField] = useState<string | null>(null);
   const [isGeneratingSlides, setIsGeneratingSlides] = useState(false);
 
+  const isLearningSpace = client.clientType === 'Espaço de Aprendizagem';
+  const effectiveSelectedInfraIds = isLearningSpace && learningSpaceInfra
+    ? [...(learningSpaceInfra.hybrid || []), ...(learningSpaceInfra.fundamental || []), ...(learningSpaceInfra.infantil || [])]
+    : selectedInfraIds;
+
   // --- HELPERS ---
-  const selectedItems = settings.infraCatalog.filter(i => selectedInfraIds.includes(i.id));
+  const selectedItems = settings.infraCatalog.filter(i => effectiveSelectedInfraIds.includes(i.id));
   const hasInfraItems = selectedItems.length > 0;
 
   // --- CONFIGURATION HANDLERS ---
@@ -155,55 +160,99 @@ export const ProposalView: React.FC<ProposalViewProps> = ({ appState, setAppStat
   const infraBonusPercent = (settings.variables.infraBonus * 100).toFixed(0);
   const infraBonusText = `Bônus fidelidade desc ${infraBonusPercent}%`;
 
-  // Bundle Calculations for passing to API
+  // Bundle Calculations for passing to API / Slides
   const calculationData = {
       totalStudents: commercial.totalStudents,
-      totalMaterialYear: grossContractMaterial / 3, // Normalized year value
+      totalMaterialYear: isLearningSpace ? getSubscriptionMonthlyForStudents(commercial.totalStudents) * 12 : grossContractMaterial / 3,
       totalInfra: totalInfraGross,
-      // Added fields for consistency
       appliedRatePerStudentYear,
-      finalMaterialRatePerMonth,
-      finalMaterialRatePerYear, // Added for Slides
+      finalMaterialRatePerMonth: isLearningSpace ? getSubscriptionMonthlyForStudents(commercial.totalStudents) : finalMaterialRatePerMonth,
+      finalMaterialRatePerYear: isLearningSpace ? getSubscriptionMonthlyForStudents(commercial.totalStudents) * 12 : finalMaterialRatePerYear,
       materialDiscountAmount,
       infraDiscountAmount,
       totalInfraNet,
       infraInstallment,
-      commercial: appState.commercial, // Pass full commercial state for flags
+      commercial: appState.commercial,
       hasInfraItems,
-      materialBonusText, // Added for Slides
-      infraBonusText // Added for Slides
+      materialBonusText,
+      infraBonusText,
+      isLearningSpace,
   };
 
   // --- CAPACITY HELPERS ---
-  const calculateCapacity = (category: CategoryType) => {
+  type SegmentKey = 'hybrid' | 'fundamental' | 'infantil';
+  const getIdsForSegment = (seg: SegmentKey): string[] => {
+    if (!learningSpaceInfra) return [];
+    if (seg === 'hybrid') return learningSpaceInfra.hybrid || [];
+    if (seg === 'fundamental') return learningSpaceInfra.fundamental || [];
+    return learningSpaceInfra.infantil || [];
+  };
+  const calculateCapacityForSegment = (seg: SegmentKey) => {
+    const ids = getIdsForSegment(seg);
     let furnitureCap = 0;
     let toolCap = 0;
-    const items = selectedItems.filter(i => i.category === category);
+    if (seg === 'hybrid') {
+      if (ids.includes('ls_hybrid_ambient_padrao_12')) furnitureCap += 12;
+      if (ids.includes('ls_hybrid_ambient_up_12')) furnitureCap += 12;
+      if (ids.includes('ls_hybrid_ambient_up_6')) furnitureCap += 6;
+      toolCap = furnitureCap;
+      if (ids.includes('ls_hybrid_tools_infantil_12')) toolCap += 12;
+      if (ids.includes('ls_hybrid_tools_infantil_6')) toolCap += 6;
+    } else if (seg === 'fundamental') {
+      if (ids.includes('ls_fund_ambient_padrao_12')) furnitureCap += 12;
+      if (ids.includes('ls_fund_ambient_up_12')) furnitureCap += 12;
+      if (ids.includes('ls_fund_ambient_up_6')) furnitureCap += 6;
+      toolCap = furnitureCap;
+    } else {
+      if (ids.includes('ls_inf_ambient_padrao_12')) furnitureCap += 18;
+      if (ids.includes('ls_inf_ambient_up_12')) furnitureCap += 12;
+      if (ids.includes('ls_inf_ambient_up_6')) furnitureCap += 6;
+      toolCap = furnitureCap;
+      if (ids.includes('ls_inf_carrinho')) {
+        toolCap = 18;
+        if (ids.includes('ls_inf_tools_up_6')) toolCap += 6;
+        if (ids.includes('ls_inf_tools_up_12')) toolCap += 12;
+      }
+    }
+    return { num: furnitureCap, numf: toolCap };
+  };
+
+  const calculateCapacity = (category: CategoryType) => {
+    const ids = effectiveSelectedInfraIds;
+    let furnitureCap = 0;
+    let toolCap = 0;
     
     if (category === 'maker') {
-        if (selectedInfraIds.includes('maker_padrao_24')) furnitureCap += 24;
-        if (selectedInfraIds.includes('maker_up_12')) furnitureCap += 12;
-        if (selectedInfraIds.includes('maker_up_6')) furnitureCap += 6;
+        if (ids.includes('maker_padrao_24')) furnitureCap += 24;
+        if (ids.includes('maker_up_12')) furnitureCap += 12;
+        if (ids.includes('maker_up_6')) furnitureCap += 6;
+        if (ids.includes('ls_hybrid_ambient_padrao_12')) furnitureCap += 12;
+        if (ids.includes('ls_hybrid_ambient_up_12')) furnitureCap += 12;
+        if (ids.includes('ls_fund_ambient_padrao_12')) furnitureCap += 12;
+        if (ids.includes('ls_fund_ambient_up_12')) furnitureCap += 12;
     } else if (category === 'midia') {
-        if (selectedInfraIds.includes('midia_padrao_24')) furnitureCap += 24;
-        if (selectedInfraIds.includes('midia_up_12')) furnitureCap += 12;
-        if (selectedInfraIds.includes('midia_up_6')) furnitureCap += 6;
+        if (ids.includes('midia_padrao_24')) furnitureCap += 24;
+        if (ids.includes('midia_up_12')) furnitureCap += 12;
+        if (ids.includes('midia_up_6')) furnitureCap += 6;
     } else if (category === 'infantil') {
-        if (selectedInfraIds.includes('infantil_padrao_18')) furnitureCap += 18;
-        if (selectedInfraIds.includes('infantil_up_12')) furnitureCap += 12;
-        if (selectedInfraIds.includes('infantil_up_6')) furnitureCap += 6;
+        if (ids.includes('infantil_padrao_18')) furnitureCap += 18;
+        if (ids.includes('infantil_up_12')) furnitureCap += 12;
+        if (ids.includes('infantil_up_6')) furnitureCap += 6;
+        if (ids.includes('ls_inf_ambient_padrao_12')) furnitureCap += 18;
+        if (ids.includes('ls_inf_ambient_up_12')) furnitureCap += 12;
+        if (ids.includes('ls_inf_ambient_up_6')) furnitureCap += 6;
     }
 
     toolCap = furnitureCap;
-    if (category === 'maker' && selectedInfraIds.includes('maker_ferr_red_18')) toolCap = 18;
-    else if (category === 'maker' && selectedInfraIds.includes('maker_minima')) {
+    if (category === 'maker' && ids.includes('maker_ferr_red_18')) toolCap = 18;
+    else if (category === 'maker' && ids.includes('maker_minima')) {
         toolCap = 24; 
-        if (selectedInfraIds.includes('maker_ferr_red_18')) toolCap = 18;
+        if (ids.includes('maker_ferr_red_18')) toolCap = 18;
     }
-    if (category === 'infantil' && selectedInfraIds.includes('infantil_carrinho')) {
+    if (category === 'infantil' && (ids.includes('infantil_carrinho') || ids.includes('ls_inf_carrinho'))) {
         toolCap = 18; 
-        if (selectedInfraIds.includes('infantil_ferr_up_6')) toolCap += 6;
-        if (selectedInfraIds.includes('infantil_ferr_up_12')) toolCap += 12;
+        if (ids.includes('infantil_ferr_up_6') || ids.includes('ls_inf_tools_up_6')) toolCap += 6;
+        if (ids.includes('infantil_ferr_up_12') || ids.includes('ls_inf_tools_up_12')) toolCap += 12;
     }
     return { num: furnitureCap, numf: toolCap };
   };
@@ -356,17 +405,35 @@ export const ProposalView: React.FC<ProposalViewProps> = ({ appState, setAppStat
 
   // --- VIEW RENDER HELPERS ---
 
-  const hasCarrinho = selectedInfraIds.includes('infantil_carrinho');
-  const hasInfantilOficina = selectedInfraIds.includes('infantil_padrao_18');
+  const hasCarrinho = effectiveSelectedInfraIds.includes('infantil_carrinho') || effectiveSelectedInfraIds.includes('ls_inf_carrinho');
+  const hasInfantilOficina = effectiveSelectedInfraIds.includes('infantil_padrao_18') || effectiveSelectedInfraIds.includes('ls_inf_ambient_padrao_12') || effectiveSelectedInfraIds.includes('ls_inf_ambient_up_12') || effectiveSelectedInfraIds.includes('ls_inf_ambient_up_6');
+  const hasInfantilMinima = effectiveSelectedInfraIds.includes('ls_inf_ambient_minima');
   const hasMaker = selectedItems.some(i => i.category === 'maker');
   const hasMidia = selectedItems.some(i => i.category === 'midia');
+  const hasInfantil = selectedItems.some(i => i.category === 'infantil');
 
-  // Dynamic Asterisk Logic
-  const materialHasMp = commercial.useMarketplace;
-  const materialHasDiscount = commercial.contractDuration === 3 && !commercial.applyInfraBonus;
+  const hybridIds = learningSpaceInfra?.hybrid || [];
+  const fundamentalIds = learningSpaceInfra?.fundamental || [];
+  const hasHybridOficina = hybridIds.some(id => ['ls_hybrid_ambient_padrao_12', 'ls_hybrid_ambient_up_12', 'ls_hybrid_ambient_up_6'].includes(id));
+  const hasHybridMinima = hybridIds.includes('ls_hybrid_ambient_minima') && !hasHybridOficina;
+  const hasFundOficina = fundamentalIds.some(id => ['ls_fund_ambient_padrao_12', 'ls_fund_ambient_up_12', 'ls_fund_ambient_up_6'].includes(id));
+  const hasFundMinima = fundamentalIds.includes('ls_fund_ambient_minima') && !hasFundOficina;
+
+  const hasHybridDigitais = hybridIds.includes('ls_hybrid_tools_digitais');
+  const hasHybridPC = hybridIds.includes('ls_hybrid_tools_pc');
+  const hasFundDigitais = fundamentalIds.includes('ls_fund_tools_digitais');
+  const hasFundPC = fundamentalIds.includes('ls_fund_tools_pc');
+  const getHybridOficinaKey = (): keyof typeof PROPOSAL_TEXTS =>
+    hasHybridPC && hasHybridDigitais ? 'ls_hybrid_oficina_completa_pc' : hasHybridDigitais ? 'ls_hybrid_oficina_completa' : 'ls_hybrid_oficina';
+  const getFundOficinaKey = (): keyof typeof PROPOSAL_TEXTS =>
+    hasFundPC && hasFundDigitais ? 'ls_fund_oficina_completa_pc' : hasFundDigitais ? 'ls_fund_oficina_completa' : 'ls_fund_oficina';
+
+  // Dynamic Asterisk Logic (EA não tem contrato 3 anos, Marketplace nem bônus)
+  const materialHasMp = !isLearningSpace && commercial.useMarketplace;
+  const materialHasDiscount = !isLearningSpace && commercial.contractDuration === 3 && !commercial.applyInfraBonus;
   const showMaterialNote = materialHasMp || materialHasDiscount;
   
-  const showInfraBonusNote = commercial.contractDuration === 3 && commercial.applyInfraBonus && hasInfraItems && commercial.useMarketplace;
+  const showInfraBonusNote = !isLearningSpace && commercial.contractDuration === 3 && commercial.applyInfraBonus && hasInfraItems && commercial.useMarketplace;
   const showRegionNote = hasInfraItems;
 
   let symbolCounter = 1;
@@ -406,13 +473,24 @@ export const ProposalView: React.FC<ProposalViewProps> = ({ appState, setAppStat
       );
   };
 
+  const renderScopeFromProposalKey = (key: keyof typeof PROPOSAL_TEXTS, segment?: SegmentKey) => {
+      const caps = segment ? calculateCapacityForSegment(segment) : calculateCapacity('infantil');
+      const t = PROPOSAL_TEXTS[key];
+      if (!t) return null;
+      return renderScopeItem(
+          replacePlaceholders(t.title, caps.num, caps.numf),
+          t.subtitle,
+          t.items.map((i: string) => replacePlaceholders(i, caps.num, caps.numf))
+      );
+  };
+
   const renderMakerText = () => {
       const caps = calculateCapacity('maker');
-      const isMinima = selectedInfraIds.includes('maker_minima');
-      const hasReduzida = selectedInfraIds.includes('maker_ferr_red_18');
-      const hasPadrao = selectedInfraIds.includes('maker_ferr_padrao');
-      const hasDigitais = selectedInfraIds.includes('maker_ferr_digitais');
-      const hasPC = selectedInfraIds.includes('maker_ferr_pc');
+      const isMinima = effectiveSelectedInfraIds.includes('maker_minima');
+      const hasReduzida = effectiveSelectedInfraIds.includes('maker_ferr_red_18');
+      const hasPadrao = effectiveSelectedInfraIds.includes('maker_ferr_padrao');
+      const hasDigitais = effectiveSelectedInfraIds.includes('maker_ferr_digitais');
+      const hasPC = effectiveSelectedInfraIds.includes('maker_ferr_pc');
       
       let t = PROPOSAL_TEXTS.maker_padrao;
       if (isMinima) {
@@ -434,7 +512,7 @@ export const ProposalView: React.FC<ProposalViewProps> = ({ appState, setAppStat
 
   const renderMidiaText = () => {
       const caps = calculateCapacity('midia');
-      const hasPC = selectedInfraIds.includes('midia_ferr_pc');
+      const hasPC = effectiveSelectedInfraIds.includes('midia_ferr_pc');
       const t = hasPC ? PROPOSAL_TEXTS.midia_com_computadores : PROPOSAL_TEXTS.midia_padrao;
 
       return renderScopeItem(
@@ -447,13 +525,17 @@ export const ProposalView: React.FC<ProposalViewProps> = ({ appState, setAppStat
   return (
     <div className="h-full flex flex-col bg-slate-100 overflow-y-auto">
       
-      {/* Toolbar */}
+      {/* Toolbar - Espaço de Aprendizagem não tem contrato 3 anos, Marketplace nem bônus */}
       <div className="sticky top-0 z-10 bg-white border-b border-slate-200 px-8 py-4 flex flex-col md:flex-row justify-between items-center shadow-sm print:hidden gap-4">
          <div className="flex items-center gap-4 flex-wrap">
-            <CustomCheckbox checked={commercial.contractDuration === 3} onChange={toggleContract} label="Contrato de 3 anos" />
-            <CustomCheckbox checked={commercial.useMarketplace} onChange={toggleMarketplace} label="Usar Market Place" />
-            {commercial.useMarketplace && commercial.contractDuration === 3 && hasInfraItems && (
-                <CustomCheckbox checked={commercial.applyInfraBonus} onChange={toggleBonus} label="Bônus na infraestrutura" />
+            {!isLearningSpace && (
+              <>
+                <CustomCheckbox checked={commercial.contractDuration === 3} onChange={toggleContract} label="Contrato de 3 anos" />
+                <CustomCheckbox checked={commercial.useMarketplace} onChange={toggleMarketplace} label="Usar Market Place" />
+                {commercial.useMarketplace && commercial.contractDuration === 3 && hasInfraItems && (
+                    <CustomCheckbox checked={commercial.applyInfraBonus} onChange={toggleBonus} label="Bônus na infraestrutura" />
+                )}
+              </>
             )}
          </div>
          <div className="flex gap-2">
@@ -491,10 +573,65 @@ export const ProposalView: React.FC<ProposalViewProps> = ({ appState, setAppStat
              </div>
           </div>
 
-          {/* MATERIAL DO ALUNO SECTION */}
+          {/* MATERIAL DO ALUNO SECTION - EA: Planos Flexíveis; Escola: tabela por aluno */}
           <div className="mb-10">
-             <div className="bg-[#8BBF56] text-white font-bold px-4 py-3 text-lg mb-0 rounded-t-lg">Material do Aluno</div>
+             <div className="bg-[#8BBF56] text-white font-bold px-4 py-3 text-lg mb-0 rounded-t-lg">{isLearningSpace ? 'Planos Flexíveis' : 'Material do Aluno'}</div>
              <div className="border border-slate-200 border-t-0 rounded-b-lg overflow-hidden">
+                {isLearningSpace ? (
+                  /* Espaço de Aprendizagem: Planos Flexíveis – título, sem coluna de rótulos, rótulo+valor por célula, coluna recomendada em verde */
+                  (() => {
+                    const recommendedCol = getRecommendedPlanIndexForStudents(commercial.totalStudents);
+                    return (
+                      <div className="overflow-x-auto">
+                        <table className="w-full text-sm border-collapse">
+                          <thead>
+                            <tr className="bg-slate-100">
+                              {SUBSCRIPTION_PLANS_EA.map((p, idx) => (
+                                <th
+                                  key={p.id}
+                                  className={`py-3 px-4 text-center border-l first:border-l-0 border-slate-200 text-slate-800 ${
+                                    idx === recommendedCol ? 'bg-[#EBF5E0]/50 border-l-2 border-r-2 border-t-2 border-[#8BBF56]' : ''
+                                  }`}
+                                >
+                                  <div className="font-bold text-base">{p.name}</div>
+                                  <div className="text-xs font-medium text-slate-600 mt-0.5">{p.perfil}</div>
+                                </th>
+                              ))}
+                            </tr>
+                          </thead>
+                          <tbody className="bg-white">
+                            {[
+                              { label: 'Mensal fixo', value: (p: typeof SUBSCRIPTION_PLANS_EA[number]) => p.mensalFixo.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }), bold: true },
+                              { label: 'Total de alunos inclusos', value: (p: typeof SUBSCRIPTION_PLANS_EA[number]) => String(p.alunosInclusos), bold: true },
+                              { label: 'Aluno adicional / mês', value: (p: typeof SUBSCRIPTION_PLANS_EA[number]) => p.alunoAdicionalMes.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }), bold: true },
+                            ].map((row, rowIdx) => {
+                              const rowsTotal = 3;
+                              const isFirstRow = rowIdx === 0;
+                              const isLastRow = rowIdx === rowsTotal - 1;
+                              return (
+                                <tr key={rowIdx} className="border-b border-slate-200">
+                                  {SUBSCRIPTION_PLANS_EA.map((p, idx) => (
+                                    <td
+                                      key={p.id}
+                                      className={`py-3 px-4 text-center border-l border-slate-200 ${
+                                        idx === recommendedCol
+                                          ? `bg-[#EBF5E0]/50 border-l-2 border-r-2 border-[#8BBF56] ${isLastRow ? 'border-b-2' : ''}`
+                                          : ''
+                                      }`}
+                                    >
+                                      <div className="text-[10px] uppercase tracking-wide text-slate-500 font-medium">{row.label}</div>
+                                      <div className={`mt-0.5 text-slate-900 ${row.bold ? 'font-bold' : 'font-semibold'}`}>{row.value(p)}</div>
+                                    </td>
+                                  ))}
+                                </tr>
+                              );
+                            })}
+                          </tbody>
+                        </table>
+                      </div>
+                    );
+                  })()
+                ) : (
                 <div className="grid grid-cols-[1fr_auto] text-sm">
                     {/* Alunos */}
                     <div className="py-3 px-4 font-medium text-slate-700 border-b border-slate-100 flex items-center">Total de Alunos</div>
@@ -557,6 +694,7 @@ export const ProposalView: React.FC<ProposalViewProps> = ({ appState, setAppStat
                         </>
                     )}
                 </div>
+                )}
              </div>
           </div>
 
@@ -631,12 +769,17 @@ export const ProposalView: React.FC<ProposalViewProps> = ({ appState, setAppStat
             </div>
           )}
 
-          {/* ESCOPO MACRO */}
+          {/* ESCOPO MACRO - EA: ls_hybrid_*, ls_fund_*, ls_inf_* conforme Infraestrutura; Escola: maker/midia/infantil */}
           <div className="mb-10 break-inside-avoid">
              {hasCarrinho && renderCarrinhoText()}
-             {hasInfantilOficina && renderInfantilOficinaText()}
-             {hasMaker && renderMakerText()}
-             {hasMidia && renderMidiaText()}
+             {hasInfantilOficina && (isLearningSpace ? renderScopeFromProposalKey('ls_inf_oficina', 'infantil') : renderInfantilOficinaText())}
+             {isLearningSpace && hasInfantil && hasInfantilMinima && !hasCarrinho && !hasInfantilOficina && renderScopeFromProposalKey('ls_inf_minima', 'infantil')}
+             {isLearningSpace && hasHybridOficina && renderScopeFromProposalKey(getHybridOficinaKey(), 'hybrid')}
+             {isLearningSpace && hasHybridMinima && renderScopeFromProposalKey('ls_hybrid_minima', 'hybrid')}
+             {isLearningSpace && hasFundOficina && renderScopeFromProposalKey(getFundOficinaKey(), 'fundamental')}
+             {isLearningSpace && hasFundMinima && renderScopeFromProposalKey('ls_fund_minima', 'fundamental')}
+             {!isLearningSpace && hasMaker && renderMakerText()}
+             {!isLearningSpace && hasMidia && renderMidiaText()}
           </div>
 
           {/* Footer Notes (Page 1) */}
