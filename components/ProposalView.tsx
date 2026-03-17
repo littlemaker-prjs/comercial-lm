@@ -196,6 +196,7 @@ export const ProposalView: React.FC<ProposalViewProps> = ({ appState, setAppStat
       if (ids.includes('ls_hybrid_ambient_up_12')) furnitureCap += 12;
       if (ids.includes('ls_hybrid_ambient_up_6')) furnitureCap += 6;
       toolCap = furnitureCap;
+      if (furnitureCap === 0 && ids.includes('ls_hybrid_tools_padrao')) toolCap = 12;
       if (ids.includes('ls_hybrid_tools_infantil_12')) toolCap += 12;
       if (ids.includes('ls_hybrid_tools_infantil_6')) toolCap += 6;
     } else if (seg === 'fundamental') {
@@ -203,13 +204,18 @@ export const ProposalView: React.FC<ProposalViewProps> = ({ appState, setAppStat
       if (ids.includes('ls_fund_ambient_up_12')) furnitureCap += 12;
       if (ids.includes('ls_fund_ambient_up_6')) furnitureCap += 6;
       toolCap = furnitureCap;
+      if (furnitureCap === 0 && (ids.includes('ls_fund_tools_padrao') || ids.includes('ls_fund_tools_red_12'))) toolCap = 12;
     } else {
-      if (ids.includes('ls_inf_ambient_padrao_12')) furnitureCap += 18;
+      if (ids.includes('ls_inf_ambient_padrao_12')) furnitureCap += 12;
       if (ids.includes('ls_inf_ambient_up_12')) furnitureCap += 12;
       if (ids.includes('ls_inf_ambient_up_6')) furnitureCap += 6;
       toolCap = furnitureCap;
       if (ids.includes('ls_inf_carrinho')) {
         toolCap = 18;
+        if (ids.includes('ls_inf_tools_up_6')) toolCap += 6;
+        if (ids.includes('ls_inf_tools_up_12')) toolCap += 12;
+      } else if (furnitureCap === 0 && ids.includes('ls_inf_tools_12')) {
+        toolCap = 12;
         if (ids.includes('ls_inf_tools_up_6')) toolCap += 6;
         if (ids.includes('ls_inf_tools_up_12')) toolCap += 12;
       }
@@ -238,7 +244,7 @@ export const ProposalView: React.FC<ProposalViewProps> = ({ appState, setAppStat
         if (ids.includes('infantil_padrao_18')) furnitureCap += 18;
         if (ids.includes('infantil_up_12')) furnitureCap += 12;
         if (ids.includes('infantil_up_6')) furnitureCap += 6;
-        if (ids.includes('ls_inf_ambient_padrao_12')) furnitureCap += 18;
+        if (ids.includes('ls_inf_ambient_padrao_12')) furnitureCap += 12;
         if (ids.includes('ls_inf_ambient_up_12')) furnitureCap += 12;
         if (ids.includes('ls_inf_ambient_up_6')) furnitureCap += 6;
     }
@@ -439,7 +445,8 @@ export const ProposalView: React.FC<ProposalViewProps> = ({ appState, setAppStat
   let symbolCounter = 1;
   const getNextSymbol = () => '*'.repeat(symbolCounter++);
 
-  const materialSymbol = showMaterialNote ? getNextSymbol() : '';
+  const planSymbol = isLearningSpace ? getNextSymbol() : '';
+  const materialSymbol = !isLearningSpace && showMaterialNote ? getNextSymbol() : '';
   const regionSymbol = showRegionNote ? getNextSymbol() : '';
   const infraBonusSymbol = showInfraBonusNote ? getNextSymbol() : '';
   
@@ -589,11 +596,13 @@ export const ProposalView: React.FC<ProposalViewProps> = ({ appState, setAppStat
                               {SUBSCRIPTION_PLANS_EA.map((p, idx) => (
                                 <th
                                   key={p.id}
-                                  className={`py-3 px-4 text-center border-l first:border-l-0 border-slate-200 text-slate-800 ${
+                                  className={`py-3 px-4 text-center border-l border-slate-200 text-slate-800 ${
+                                    idx === 0 && recommendedCol !== 0 ? 'border-l-0' : ''
+                                  } ${
                                     idx === recommendedCol ? 'bg-[#EBF5E0]/50 border-l-2 border-r-2 border-t-2 border-[#8BBF56]' : ''
                                   }`}
                                 >
-                                  <div className="font-bold text-base">{p.name}</div>
+                                  <div className="font-bold text-base">{p.name + (idx === recommendedCol ? ' *' : '')}</div>
                                   <div className="text-xs font-medium text-slate-600 mt-0.5">{p.perfil}</div>
                                 </th>
                               ))}
@@ -785,6 +794,7 @@ export const ProposalView: React.FC<ProposalViewProps> = ({ appState, setAppStat
           {/* Footer Notes (Page 1) */}
           <div className="mt-auto pt-8 border-t border-slate-200">
               <div className="text-[10px] text-slate-500 space-y-1">
+                {isLearningSpace && <p>{planSymbol} Melhor plano para simulação de {commercial.totalStudents} alunos.</p>}
                 {showMaterialNote && (
                     <p>{materialSymbol} {
                         materialHasMp && materialHasDiscount 
@@ -801,7 +811,11 @@ export const ProposalView: React.FC<ProposalViewProps> = ({ appState, setAppStat
                     </>
                 )}
                 {showRegionNote && <p>{regionSymbol} Região de entrega considerada: <strong>{currentRegion.label}</strong>.</p>}
-                <p className="pt-2 font-medium text-slate-600">Proposta válida por 30 dias a partir da data de emissão.</p>
+                {isLearningSpace ? (
+                  <p className="pt-2">Valores conforme ítens detalhados no memorial descritivo. Validade da proposta 30 dias.</p>
+                ) : (
+                  <p className="pt-2 font-medium text-slate-600">Proposta válida por 30 dias a partir da data de emissão.</p>
+                )}
             </div>
           </div>
 

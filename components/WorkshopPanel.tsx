@@ -335,7 +335,7 @@ export const WorkshopPanel: React.FC<WorkshopPanelProps> = ({ appState, setAppSt
         id: 'infantil',
         title: 'Maker Infantil',
         ambientacao: [
-          { id: 'ls_inf_ambient_padrao_12', label: 'Oficina Padrão - 18 alunos', category: 'infantil' },
+          { id: 'ls_inf_ambient_padrao_12', label: 'Oficina Padrão - 12 alunos', category: 'infantil' },
           { id: 'ls_inf_ambient_up_12', label: 'Upgrade 12 alunos', category: 'infantil' },
           { id: 'ls_inf_ambient_up_6', label: 'Upgrade 6 alunos', category: 'infantil' },
           { id: 'ls_inf_ambient_minima', label: 'Ambientação Mínima', category: 'infantil' },

@@ -33,18 +33,25 @@ const getCapacityForIds = (ids: string[], category: 'maker' | 'infantil') => {
         toolCap = furnitureCap;
         if (ids.includes('maker_ferr_red_18')) toolCap = 18;
         if (ids.includes('maker_minima')) { toolCap = 24; if (ids.includes('maker_ferr_red_18')) toolCap = 18; }
+        // Ferramentas ls_xxx: quando ambientação mínima (sem mobiliário), capacidade vem das ferramentas
+        if (furnitureCap === 0 && ids.includes('ls_hybrid_tools_padrao')) toolCap = 12;
         if (ids.includes('ls_hybrid_tools_infantil_12')) toolCap += 12;
         if (ids.includes('ls_hybrid_tools_infantil_6')) toolCap += 6;
+        if (furnitureCap === 0 && (ids.includes('ls_fund_tools_padrao') || ids.includes('ls_fund_tools_red_12'))) toolCap = 12;
     } else {
         if (ids.includes('infantil_padrao_18')) furnitureCap += 18;
         if (ids.includes('infantil_up_12')) furnitureCap += 12;
         if (ids.includes('infantil_up_6')) furnitureCap += 6;
-        if (ids.includes('ls_inf_ambient_padrao_12')) furnitureCap += 18;
+        if (ids.includes('ls_inf_ambient_padrao_12')) furnitureCap += 12;
         if (ids.includes('ls_inf_ambient_up_12')) furnitureCap += 12;
         if (ids.includes('ls_inf_ambient_up_6')) furnitureCap += 6;
         toolCap = furnitureCap;
         if (ids.includes('infantil_carrinho') || ids.includes('ls_inf_carrinho')) {
             toolCap = 18;
+            if (ids.includes('ls_inf_tools_up_6')) toolCap += 6;
+            if (ids.includes('ls_inf_tools_up_12')) toolCap += 12;
+        } else if (furnitureCap === 0 && ids.includes('ls_inf_tools_12')) {
+            toolCap = 12;
             if (ids.includes('ls_inf_tools_up_6')) toolCap += 6;
             if (ids.includes('ls_inf_tools_up_12')) toolCap += 12;
         }
@@ -567,6 +574,7 @@ export const createGoogleSlidePresentation = async (
   let symbolCounter = 1;
   const getNextSymbol = () => '*'.repeat(symbolCounter++);
 
+  const planSymbol = isLearningSpace ? getNextSymbol() : '';
   const materialSymbol = showMaterialNote ? getNextSymbol() : '';
   const regionSymbol = showRegionNote ? getNextSymbol() : '';
   const infraBonusSymbol = showInfraBonusNote ? getNextSymbol() : '';
@@ -590,7 +598,7 @@ export const createGoogleSlidePresentation = async (
       const planBodyY = leftY + planHeaderVisibleH;
       const planTheadRowH = 28;
       const planDataRows = 3;
-      const planTableBottomMargin = 24;
+      const planTableBottomMargin = 8;
       const planBodyH = planTheadRowH + planDataRows * planRowH + planTableBottomMargin;
       const GREEN_TINT = { red: 0.92, green: 0.96, blue: 0.88 };
       const recommendedCol = getRecommendedPlanIndexForStudents(totalStudents);
@@ -624,21 +632,7 @@ export const createGoogleSlidePresentation = async (
       requests.push({ updateShapeProperties: { objectId: planHeaderStraightId, shapeProperties: { shapeBackgroundFill: { solidFill: { color: { rgbColor: GREEN } } }, outline: { propertyState: 'NOT_RENDERED' } }, fields: 'shapeBackgroundFill,outline' } });
       addText(valuesId, "Planos Flexíveis", planTableX, leftY, planTableW, planHeaderVisibleH, 10, WHITE, true, 'CENTER', 'MIDDLE');
 
-      // Corpo: cantos inferiores arredondados (mesmo padrão escola)
-      const planBodyCapH = 20;
-      const planBodyBottomId = `plan_body_bottom_${valuesId}`;
-      requests.push({
-          createShape: {
-              objectId: planBodyBottomId,
-              shapeType: 'ROUND_RECTANGLE',
-              elementProperties: {
-                  pageObjectId: valuesId,
-                  size: { width: { magnitude: planTableW, unit: 'PT' }, height: { magnitude: planBodyCapH, unit: 'PT' } },
-                  transform: { scaleX: 1, scaleY: 1, translateX: planTableX, translateY: planBodyY + planBodyH - planBodyCapH, unit: 'PT' }
-              }
-          }
-      });
-      requests.push({ updateShapeProperties: { objectId: planBodyBottomId, shapeProperties: { shapeBackgroundFill: { solidFill: { color: { rgbColor: { red: 0.95, green: 0.95, blue: 0.95 } } } }, outline: { propertyState: 'NOT_RENDERED' } }, fields: 'shapeBackgroundFill,outline' } });
+      // Corpo: retângulo único, borda inferior reta (sem arredondamento)
       const planBodyMainId = `plan_body_main_${valuesId}`;
       requests.push({
           createShape: {
@@ -646,7 +640,7 @@ export const createGoogleSlidePresentation = async (
               shapeType: 'RECTANGLE',
               elementProperties: {
                   pageObjectId: valuesId,
-                  size: { width: { magnitude: planTableW, unit: 'PT' }, height: { magnitude: planBodyH - (planBodyCapH / 2), unit: 'PT' } },
+                  size: { width: { magnitude: planTableW, unit: 'PT' }, height: { magnitude: planBodyH, unit: 'PT' } },
                   transform: { scaleX: 1, scaleY: 1, translateX: planTableX, translateY: planBodyY, unit: 'PT' }
               }
           }
@@ -686,7 +680,7 @@ export const createGoogleSlidePresentation = async (
               });
               requests.push({ updateShapeProperties: { objectId: recTheadId, shapeProperties: { shapeBackgroundFill: { solidFill: { color: { rgbColor: GREEN_TINT } } }, outline: { propertyState: 'NOT_RENDERED' } }, fields: 'shapeBackgroundFill,outline' } });
           }
-          addText(valuesId, p.name + (isRec ? ' *' : ''), cx + 4, planBodyY + 2, planColW - 8, 12, 9, BLACK, true, 'CENTER', 'MIDDLE');
+          addText(valuesId, (isRec ? '* ' : '') + p.name, cx + 4, planBodyY + 2, planColW - 8, 12, 9, BLACK, true, 'CENTER', 'MIDDLE');
           addText(valuesId, p.perfil, cx + 4, planBodyY + 14, planColW - 8, 10, 6, { red: 0.4, green: 0.4, blue: 0.4 }, false, 'CENTER', 'MIDDLE');
       });
 
@@ -719,6 +713,22 @@ export const createGoogleSlidePresentation = async (
               addText(valuesId, row.getVal(p), cx + 4, y + 12, planColW - 8, planRowH - 14, 9, BLACK, true, 'CENTER', 'MIDDLE');
           });
       });
+      // Fundo verde da coluna recomendada até a borda inferior (preenche a margem da última linha)
+      const planRecColBottomY = planBodyY + planTheadRowH + planDataRows * planRowH;
+      const recColBottomId = `plan_rec_col_bottom_${valuesId}`;
+      const recColCx = planTableX + recommendedCol * planColW;
+      requests.push({
+          createShape: {
+              objectId: recColBottomId,
+              shapeType: 'RECTANGLE',
+              elementProperties: {
+                  pageObjectId: valuesId,
+                  size: { width: { magnitude: planColW, unit: 'PT' }, height: { magnitude: planTableBottomMargin, unit: 'PT' } },
+                  transform: { scaleX: 1, scaleY: 1, translateX: recColCx, translateY: planRecColBottomY, unit: 'PT' }
+              }
+          }
+      });
+      requests.push({ updateShapeProperties: { objectId: recColBottomId, shapeProperties: { shapeBackgroundFill: { solidFill: { color: { rgbColor: GREEN_TINT } } }, outline: { propertyState: 'NOT_RENDERED' } }, fields: 'shapeBackgroundFill,outline' } });
   } else {
   // Composite Header (Green) - Escola
   const leftHeaderRoundId = `left_header_round_${valuesId}`;
@@ -952,7 +962,7 @@ export const createGoogleSlidePresentation = async (
       footnotes.push(`${materialSymbol} ${text}`);
   }
 
-  if (showRegionNote) {
+  if (showRegionNote && !isLearningSpace) {
       footnotes.push(`${regionSymbol} Região de entrega considerada: ${appState.regionId || 'Padrão'}`);
   }
 
@@ -961,8 +971,10 @@ export const createGoogleSlidePresentation = async (
   }
 
   if (isLearningSpace) {
-      footnotes.push(`* Melhor plano para simulação de ${totalStudents} alunos`);
-      if (calculations.hasInfraItems) footnotes.push(`** Valores conforme itens selecionados na proposta.`);
+      footnotes.push(`${planSymbol} Melhor plano para simulação de ${totalStudents} alunos`);
+      if (calculations.hasInfraItems) footnotes.push(`${regionSymbol} Região de entrega considerada: ${appState.regionId || 'Padrão'}`);
+      footnotes.push('');
+      footnotes.push('Valores conforme ítens detalhados no memorial descritivo. Validade da proposta 30 dias.');
   }
   
   // Removed "Proposta válida..." from here as it moved to cover
