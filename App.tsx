@@ -206,20 +206,23 @@ function App() {
     return selection;
   };
 
-  const getDefaultLearningSpaceInfra = (segments: string[]): LearningSpaceInfraSelection => {
+  const getDefaultLearningSpaceInfra = (segments: string[], totalStudents: number): LearningSpaceInfraSelection => {
     const hasEI = segments.includes('Educação Infantil');
     const hasAnosFinaisOuMedio = segments.includes('Ens. Fundamental Anos Finais') || segments.includes('Ensino Médio');
     const hasOutroQueInfantil = segments.some(s => s !== 'Educação Infantil');
+    const useMinima = totalStudents <= 14;
 
     if (hasEI && !hasOutroQueInfantil) {
+      const ambient = useMinima ? 'ls_inf_ambient_minima' : 'ls_inf_ambient_padrao_12';
       return {
         hybrid: [],
         fundamental: [],
-        infantil: ['ls_inf_ambient_padrao_12', 'ls_inf_tools_12']
+        infantil: [ambient, 'ls_inf_tools_12']
       };
     }
     if (hasEI && hasOutroQueInfantil) {
-      const hybrid: string[] = ['ls_hybrid_ambient_padrao_12', 'ls_hybrid_tools_padrao'];
+      const ambient = useMinima ? 'ls_hybrid_ambient_minima' : 'ls_hybrid_ambient_padrao_12';
+      const hybrid: string[] = [ambient, 'ls_hybrid_tools_padrao'];
       if (hasAnosFinaisOuMedio) hybrid.push('ls_hybrid_tools_digitais');
       return {
         hybrid,
@@ -228,7 +231,8 @@ function App() {
       };
     }
     if (!hasEI && hasOutroQueInfantil) {
-      const fundamental: string[] = ['ls_fund_ambient_padrao_12', 'ls_fund_tools_padrao'];
+      const ambient = useMinima ? 'ls_fund_ambient_minima' : 'ls_fund_ambient_padrao_12';
+      const fundamental: string[] = [ambient, 'ls_fund_tools_padrao'];
       if (hasAnosFinaisOuMedio) fundamental.push('ls_fund_tools_digitais');
       return {
         hybrid: [],
@@ -244,7 +248,7 @@ function App() {
       const ls = appState.learningSpaceInfra;
       const isEmpty = !ls || (ls.hybrid.length === 0 && ls.fundamental.length === 0 && ls.infantil.length === 0);
       if (isEmpty) {
-        const defaultLS = getDefaultLearningSpaceInfra(appState.client.segments);
+        const defaultLS = getDefaultLearningSpaceInfra(appState.client.segments, appState.commercial.totalStudents);
         setAppState(prev => ({ ...prev, learningSpaceInfra: defaultLS }));
       }
     } else {
