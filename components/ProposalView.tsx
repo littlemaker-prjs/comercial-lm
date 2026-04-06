@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { AppState, CategoryType } from '../types';
 import { Download, CheckSquare, Edit3, Presentation, Loader2 } from 'lucide-react';
 import { useSettings } from '../contexts/SettingsContext';
@@ -110,6 +110,22 @@ export const ProposalView: React.FC<ProposalViewProps> = ({ appState, setAppStat
   }
   const totalInfraCalculated = infraSum + freightCost;
   const totalInfraGross = commercial.customValues?.infraTotal !== undefined ? commercial.customValues.infraTotal : totalInfraCalculated;
+
+  useEffect(() => {
+    const ambientacao = selectedItems.filter(i => i.type === 'ambientacao').reduce((s, i) => s + i.price, 0);
+    const ferramentas = selectedItems.filter(i => i.type === 'ferramentas').reduce((s, i) => s + i.price, 0);
+    const requiresAssembly = selectedItems.some(i => i.requiresAssembly);
+    const freteModo = hasInfraItems ? (requiresAssembly ? 'com montagem' : 'sem montagem (frete simples)') : '—';
+    console.log('[ProposalView] Infraestrutura (montagem da view)', {
+      ambientacao,
+      ferramentas,
+      frete: hasInfraItems ? freightCost : 0,
+      freteModo,
+      regiao: currentRegion.label,
+      totalItensInfra: infraSum,
+      totalComFrete: hasInfraItems ? totalInfraCalculated : infraSum,
+    });
+  }, []);
 
   let appliedRatePerStudentYear = 0;
   if (commercial.customValues?.materialPricePerYear !== undefined) {
