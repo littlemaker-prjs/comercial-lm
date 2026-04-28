@@ -93,7 +93,16 @@ export const PROPOSAL_TEXTS = {
     items: [
       "Conjunto de ferramentas Maker com amplas possibilidades",
       "Inclui impressora 3D, canetas 3D, máquina de costura, kit 60 módulos eletrônicos, ferramentas manuais e muito mais",
-      "Adequada para turmas de até {{num}} alunos"
+      "Adequada para turmas de até {{numf}} alunos"
+    ]
+  },
+  maker_padrao_ferr_reduzidas: {
+    title: "Oficina Maker Padrão - {{numf}} alunos",
+    subtitle: "Ambientação de oficina temática com ferramentas reduzidas",
+    items: [
+      "Conjunto de ferramentas Maker com amplas possibilidades",
+      "Inclui canetas 3D, máquina de costura portátil manual, kit 30 módulos eletrônicos, ferramentas manuais e muito mais",
+      "Adequada para turmas de até {{numf}} alunos (limite das ferramentas)"
     ]
   },
   maker_completa: {

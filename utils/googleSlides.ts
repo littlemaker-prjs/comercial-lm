@@ -97,6 +97,7 @@ const getProposalText = (category: CategoryType, selectedIds: string[], calculat
             } else {
                 if (hasPC && hasDigitais) t = PROPOSAL_TEXTS.maker_completa_pc;
                 else if (hasDigitais) t = PROPOSAL_TEXTS.maker_completa;
+                else if (hasReduzida) t = PROPOSAL_TEXTS.maker_padrao_ferr_reduzidas;
                 else t = PROPOSAL_TEXTS.maker_padrao;
             }
         }

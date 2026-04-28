@@ -328,13 +328,13 @@ function App() {
         <div className="px-6 pb-2">
             <div className="bg-black/20 rounded-lg p-4 text-xs text-purple-100 space-y-3">
                 <div className="font-bold text-white uppercase tracking-wider border-b border-white/10 pb-1 mb-2">Resumo</div>
-                <div className="flex justify-between items-center">
-                    <span>Alunos:</span>
-                    <span className="font-bold text-white text-sm">{summary.totalStudents}</span>
+                <div className="flex justify-between items-center gap-2">
+                    <span className="shrink-0">Alunos:</span>
+                    <span className="font-bold text-white text-sm text-right">{summary.totalStudents}</span>
                 </div>
-                <div className="flex flex-col gap-1 pt-1">
-                    <span className="text-purple-200">Infra:</span>
-                    <span className="font-bold text-white text-sm leading-tight">
+                <div className="flex justify-between items-center gap-2 pt-1">
+                    <span className="text-purple-200 shrink-0">Infra:</span>
+                    <span className="font-bold text-white text-sm text-right leading-tight min-w-0">
                         {summary.activeTypes.length > 0 ? summary.activeTypes.join(', ') : '-'}
                     </span>
                 </div>
