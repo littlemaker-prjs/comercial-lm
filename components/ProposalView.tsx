@@ -1,11 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { AppState, CategoryType } from '../types';
-import { Download, CheckSquare, Edit3, Presentation, Loader2 } from 'lucide-react';
+import { Download, CheckSquare, Edit3, Presentation, Loader2, ExternalLink } from 'lucide-react';
 import { useSettings } from '../contexts/SettingsContext';
 import { PROPOSAL_TEXTS, INFRA_DETAILS, AMBIENTATION_IMAGES, SUBSCRIPTION_PLANS_EA, getSubscriptionMonthlyForStudents, getRecommendedPlanIndexForStudents } from '../constants';
 import PptxGenJS from 'pptxgenjs';
 import { auth, googleProvider } from '../firebase';
-import { createGoogleSlidePresentation } from '../utils/googleSlides';
+import { createGoogleSlidePresentation, extractPresentationIdFromUrl } from '../utils/googleSlides';
+import { createLockedCaptureHandler, lockedInputClass } from '../utils/lockedEdit';
 import firebase from 'firebase/compat/app';
 import 'firebase/compat/auth';
 
@@ -13,13 +14,16 @@ interface ProposalViewProps {
   appState: AppState;
   setAppState: React.Dispatch<React.SetStateAction<AppState>>;
   onSave?: (redirect?: boolean) => void;
+  onLock?: (presentationId: string, slidesUrl: string) => Promise<void>;
   isSaving?: boolean;
   user?: any;
   isMaster: boolean;
   googleAccessToken?: string | null;
+  readOnly?: boolean;
+  onBlockedEdit?: () => void;
 }
 
-export const ProposalView: React.FC<ProposalViewProps> = ({ appState, setAppState, onSave, isSaving, user, isMaster, googleAccessToken }) => {
+export const ProposalView: React.FC<ProposalViewProps> = ({ appState, setAppState, onSave, onLock, isSaving, user, isMaster, googleAccessToken, readOnly = false, onBlockedEdit }) => {
   const { settings } = useSettings();
   const { selectedInfraIds, regionId, commercial, learningSpaceInfra, client } = appState;
   const [editingField, setEditingField] = useState<string | null>(null);
@@ -74,6 +78,7 @@ export const ProposalView: React.FC<ProposalViewProps> = ({ appState, setAppStat
   };
 
   const updateStudents = (val: number) => {
+    if (readOnly) return;
     setAppState(prev => ({ ...prev, commercial: { ...prev.commercial, totalStudents: val } }));
   };
 
@@ -285,6 +290,7 @@ export const ProposalView: React.FC<ProposalViewProps> = ({ appState, setAppStat
 
   // --- GOOGLE SLIDES GENERATION ---
   const handleGoogleSlidesGeneration = async () => {
+    if (readOnly) { onBlockedEdit?.(); return; }
     setIsGeneratingSlides(true);
     try {
         // Auto-save before generating slides (no redirect)
@@ -339,6 +345,10 @@ export const ProposalView: React.FC<ProposalViewProps> = ({ appState, setAppStat
         try {
             const editUrl = await createGoogleSlidePresentation(accessToken, stateToPass, calculationData);
             window.open(editUrl, '_blank');
+            const presentationId = extractPresentationIdFromUrl(editUrl);
+            if (presentationId && onLock) {
+                await onLock(presentationId, editUrl);
+            }
         } catch (error: any) {
             // Reactive check: if unauthorized, try one more time with a fresh token
             if (error.message?.includes('401') || error.message?.includes('unauthorized') || error.message?.includes('authenticated')) {
@@ -347,6 +357,10 @@ export const ProposalView: React.FC<ProposalViewProps> = ({ appState, setAppStat
                 if (accessToken) {
                     const editUrl = await createGoogleSlidePresentation(accessToken, stateToPass, calculationData);
                     window.open(editUrl, '_blank');
+                    const presentationId = extractPresentationIdFromUrl(editUrl);
+                    if (presentationId && onLock) {
+                        await onLock(presentationId, editUrl);
+                    }
                 } else {
                     throw error;
                 }
@@ -365,7 +379,7 @@ export const ProposalView: React.FC<ProposalViewProps> = ({ appState, setAppStat
 
 
   const CustomCheckbox = ({ checked, label, onChange }: { checked: boolean; label: string; onChange: () => void }) => (
-    <div onClick={onChange} className="flex items-center gap-2 cursor-pointer group select-none">
+    <div onClick={readOnly ? onBlockedEdit : onChange} className={`flex items-center gap-2 select-none ${readOnly ? 'opacity-60 cursor-default' : 'cursor-pointer group'}`}>
         <div className={`w-5 h-5 rounded border flex items-center justify-center transition-colors ${checked ? 'bg-[#8BBF56] border-[#8BBF56] text-white' : 'bg-white border-slate-300 group-hover:border-[#8BBF56]'}`}>
             {checked ? <CheckSquare className="w-4 h-4" /> : null}
         </div>
@@ -546,6 +560,14 @@ export const ProposalView: React.FC<ProposalViewProps> = ({ appState, setAppStat
       );
   };
 
+  const handleLockedCapture = createLockedCaptureHandler(readOnly, onBlockedEdit);
+  const slidesUrl = appState.meta?.googleSlidesUrl;
+  const hasGeneratedSlides = readOnly && !!slidesUrl;
+
+  const handleOpenProposal = () => {
+    if (slidesUrl) window.open(slidesUrl, '_blank');
+  };
+
   return (
     <div className="h-full flex flex-col bg-slate-100 overflow-y-auto">
       
@@ -563,20 +585,30 @@ export const ProposalView: React.FC<ProposalViewProps> = ({ appState, setAppStat
             )}
          </div>
          <div className="flex gap-2">
-            <button 
-                onClick={handleGoogleSlidesGeneration} 
-                disabled={isGeneratingSlides}
-                className="flex items-center gap-2 bg-[#F24E1E] text-white px-5 py-2 rounded-lg font-bold hover:bg-[#d43d10] transition-colors shadow-sm disabled:opacity-70 disabled:cursor-wait"
-            >
-                {isGeneratingSlides ? <Loader2 className="w-4 h-4 animate-spin" /> : <Presentation className="w-4 h-4" />}
-                {isGeneratingSlides ? 'Gerando...' : 'Gerar Google Slides'}
-            </button>
+            {hasGeneratedSlides ? (
+              <button
+                onClick={handleOpenProposal}
+                className="flex items-center gap-2 bg-[#71477A] text-white px-5 py-2 rounded-lg font-bold hover:bg-[#5d3a64] transition-colors shadow-sm"
+              >
+                <ExternalLink className="w-4 h-4" />
+                Abrir Proposta
+              </button>
+            ) : (
+              <button 
+                  onClick={handleGoogleSlidesGeneration} 
+                  disabled={isGeneratingSlides}
+                  className="flex items-center gap-2 bg-[#F24E1E] text-white px-5 py-2 rounded-lg font-bold hover:bg-[#d43d10] transition-colors shadow-sm disabled:opacity-70 disabled:cursor-not-allowed"
+              >
+                  {isGeneratingSlides ? <Loader2 className="w-4 h-4 animate-spin" /> : <Presentation className="w-4 h-4" />}
+                  {isGeneratingSlides ? 'Gerando...' : 'Gerar Google Slides'}
+              </button>
+            )}
          </div>
       </div>
 
       {/* Main Document View (PREVIEW HTML) */}
       <div className="flex-1 p-8 print:p-0 flex justify-center">
-        <div id="proposal-content" className="w-[210mm] bg-white min-h-[297mm] shadow-2xl print:shadow-none p-12 print:p-8 flex flex-col relative print:w-full">
+        <div id="proposal-content" onMouseDownCapture={handleLockedCapture} className="w-[210mm] bg-white min-h-[297mm] shadow-2xl print:shadow-none p-12 print:p-8 flex flex-col relative print:w-full">
           
           {/* Header */}
           <div className="mb-8">
@@ -663,7 +695,7 @@ export const ProposalView: React.FC<ProposalViewProps> = ({ appState, setAppStat
                     <div className="py-3 px-4 font-medium text-slate-700 border-b border-slate-100 flex items-center">Total de Alunos</div>
                     <div className="py-2 px-4 text-right bg-white border-b border-slate-100 print:py-3 print:px-4 print:font-bold">
                         <div className="print:hidden">
-                            <input type="number" value={commercial.totalStudents} onChange={(e) => updateStudents(parseInt(e.target.value) || 0)} className="bg-slate-50 text-slate-900 text-right font-bold w-20 py-1 px-1 outline-none focus:bg-white focus:ring-1 focus:ring-[#8BBF56] rounded transition-all border border-transparent hover:border-slate-200" />
+                            <input type="number" value={commercial.totalStudents} onChange={(e) => updateStudents(parseInt(e.target.value) || 0)} readOnly={readOnly} className={lockedInputClass(readOnly, "bg-slate-50 text-slate-900 text-right font-bold w-20 py-1 px-1 outline-none focus:bg-white focus:ring-1 focus:ring-[#8BBF56] rounded transition-all border border-transparent hover:border-slate-200")} />
                         </div>
                         <div className="hidden print:block">{commercial.totalStudents}</div>
                     </div>
@@ -671,7 +703,7 @@ export const ProposalView: React.FC<ProposalViewProps> = ({ appState, setAppStat
                     {/* Investimento Ano - Editable by Master */}
                     <div className="py-3 px-4 font-medium text-slate-700 border-b border-slate-100 flex items-center gap-2 group">
                         Investimento Aluno/ano {materialSymbol}
-                        {isMaster && (
+                        {isMaster && !readOnly && (
                             <button onClick={() => setEditingField('materialPricePerYear')} className="opacity-0 group-hover:opacity-100 transition-opacity p-1 hover:bg-slate-100 rounded print:hidden">
                                 <Edit3 className="w-3 h-3 text-slate-400 hover:text-slate-600" />
                             </button>
@@ -700,7 +732,7 @@ export const ProposalView: React.FC<ProposalViewProps> = ({ appState, setAppStat
                         <>
                             <div className="py-2 px-4 font-medium text-slate-500 bg-white flex items-center gap-2 group">
                                 {materialBonusText}
-                                {isMaster && (
+                                {isMaster && !readOnly && (
                                     <button onClick={() => setEditingField('materialBonus')} className="opacity-0 group-hover:opacity-100 transition-opacity p-1 hover:bg-slate-100 rounded print:hidden">
                                         <Edit3 className="w-3 h-3 text-slate-400 hover:text-slate-600" />
                                     </button>
@@ -734,7 +766,7 @@ export const ProposalView: React.FC<ProposalViewProps> = ({ appState, setAppStat
                         {/* Investimento Infra Total - Editable by Master */}
                         <div className="py-3 px-4 font-medium text-slate-700 border-b border-slate-100 flex items-center gap-2 group">
                             Investimento Infraestrutura {regionSymbol}
-                            {isMaster && (
+                            {isMaster && !readOnly && (
                                 <button onClick={() => setEditingField('infraTotal')} className="opacity-0 group-hover:opacity-100 transition-opacity p-1 hover:bg-slate-100 rounded print:hidden">
                                     <Edit3 className="w-3 h-3 text-slate-400 hover:text-slate-600" />
                                 </button>
@@ -757,7 +789,7 @@ export const ProposalView: React.FC<ProposalViewProps> = ({ appState, setAppStat
                             <>
                                 <div className="py-2 px-4 font-medium text-slate-700 border-b border-slate-100 flex items-center gap-2 group">
                                     {infraBonusText} {infraBonusSymbol}
-                                    {isMaster && (
+                                    {isMaster && !readOnly && (
                                         <button onClick={() => setEditingField('infraBonus')} className="opacity-0 group-hover:opacity-100 transition-opacity p-1 hover:bg-slate-100 rounded print:hidden">
                                             <Edit3 className="w-3 h-3 text-slate-400 hover:text-slate-600" />
                                         </button>

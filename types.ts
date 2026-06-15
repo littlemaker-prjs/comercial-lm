@@ -73,6 +73,13 @@ export interface LearningSpaceInfraSelection {
   infantil: string[];
 }
 
+export interface ProposalMeta {
+  isLocked?: boolean;
+  googlePresentationId?: string;
+  googleSlidesUrl?: string;
+  lockedAt?: string;
+}
+
 // Global App State
 export interface AppState {
   client: ClientInfo;
@@ -80,4 +87,5 @@ export interface AppState {
   selectedInfraIds: string[];
   commercial: CommercialConfig;
   learningSpaceInfra?: LearningSpaceInfraSelection;
+  meta?: ProposalMeta;
 }

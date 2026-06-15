@@ -6,6 +6,9 @@ export const SUPER_ADMINS = [
   'denise@littlemaker.com.br'
 ];
 
+/** Pasta compartilhada no Google Drive onde as propostas (Slides) são salvas */
+export const GOOGLE_PROPOSALS_FOLDER_ID = '1nSVmXLp-FMQmxOHDJSlry8yaA6QEp-mk';
+
 export const REGIONS: Region[] = [
   { id: 'ate_700', label: 'Até 700Km', priceSimple: 1500, priceAssembly: 4000 },
   { id: 'sudeste', label: 'Sudeste', priceSimple: 1500, priceAssembly: 8500 },

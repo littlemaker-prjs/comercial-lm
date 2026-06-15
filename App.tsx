@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { StartScreen } from './components/StartScreen';
 import { WorkshopPanel } from './components/WorkshopPanel';
 import { ProposalView } from './components/ProposalView';
@@ -7,16 +7,29 @@ import { LoginScreen } from './components/LoginScreen';
 import { Dashboard } from './components/Dashboard';
 import { AppState, LearningSpaceInfraSelection } from './types';
 import { INITIAL_APP_STATE, SUPER_ADMINS } from './constants';
-import { LayoutDashboard, FileText, User, ArrowLeft, Loader2, Save, CheckCircle, AlertCircle, X } from 'lucide-react';
+import { LayoutDashboard, FileText, User, ArrowLeft, Loader2, Save, CheckCircle, AlertCircle, X, Lock, Link2 } from 'lucide-react';
 import { auth, db } from './firebase';
 import firebase from 'firebase/compat/app';
 import { useSettings } from './contexts/SettingsContext';
+import { deleteGooglePresentation } from './utils/googleSlides';
 
 enum Step {
   START = 'start',
   WORKSHOPS = 'workshops',
   PROPOSAL = 'proposal',
 }
+
+const serializeEditorState = (state: AppState, proposalId: string | null) =>
+  JSON.stringify({ proposalId, state });
+
+const syncProposalUrl = (id: string | null) => {
+  const path = window.location.pathname;
+  if (id) {
+    window.history.replaceState({}, '', `${path}?proposta=${id}`);
+  } else {
+    window.history.replaceState({}, '', path);
+  }
+};
 
 function App() {
   const { settings } = useSettings(); // Use Global Settings
@@ -36,7 +49,17 @@ function App() {
   const [appState, setAppState] = useState<AppState>(INITIAL_APP_STATE);
   const [currentProposalId, setCurrentProposalId] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
-  const [notification, setNotification] = useState<{message: string, type: 'success' | 'error'} | null>(null);
+  const [notification, setNotification] = useState<{message: string, type: 'success' | 'error' | 'info'} | null>(null);
+  const [showLockModal, setShowLockModal] = useState(false);
+  const [showDiscardModal, setShowDiscardModal] = useState(false);
+  const [isUnlocking, setIsUnlocking] = useState(false);
+  const [savedSnapshot, setSavedSnapshot] = useState(() => serializeEditorState(INITIAL_APP_STATE, null));
+  const pendingProposalIdRef = useRef<string | null>(
+    new URLSearchParams(window.location.search).get('proposta')
+  );
+
+  const isLocked = appState.meta?.isLocked === true;
+  const isDirty = serializeEditorState(appState, currentProposalId) !== savedSnapshot;
 
   useEffect(() => {
     const unsubscribe = auth.onAuthStateChanged((u) => {
@@ -98,13 +121,24 @@ function App() {
     sessionStorage.removeItem('googleTokenTimestamp');
     setViewMode('dashboard');
     setIsMaster(false);
+    syncProposalUrl(null);
   };
+
+  const showNotification = (message: string, type: 'success' | 'error' | 'info') => {
+      setNotification({ message, type });
+  };
+
+  const notifyBlockedEdit = useCallback(() => {
+    showNotification('Proposta Bloqueada', 'info');
+  }, []);
 
   const startNewProposal = () => {
     setAppState(INITIAL_APP_STATE);
     setCurrentProposalId(null);
     setCurrentStep(Step.START);
     setViewMode('editor');
+    setSavedSnapshot(serializeEditorState(INITIAL_APP_STATE, null));
+    syncProposalUrl(null);
   };
 
   const loadProposal = (id: string | null, data: AppState) => {
@@ -112,43 +146,74 @@ function App() {
     setCurrentProposalId(id);
     setCurrentStep(id ? Step.PROPOSAL : Step.START);
     setViewMode('editor');
+    setSavedSnapshot(serializeEditorState(data, id));
+    syncProposalUrl(id);
   };
 
-  const showNotification = (message: string, type: 'success' | 'error') => {
-      setNotification({ message, type });
-  };
+  useEffect(() => {
+    if (!activeUser || authLoading) return;
+    const proposalId = pendingProposalIdRef.current;
+    if (!proposalId) return;
+    pendingProposalIdRef.current = null;
 
-  const handleSaveProposal = async (redirect: boolean = true) => {
+    (async () => {
+      try {
+        const doc = await db.collection('proposals').doc(proposalId).get();
+        if (doc.exists) {
+          const data = doc.data();
+          loadProposal(proposalId, data?.data as AppState);
+        } else {
+          showNotification('Proposta não encontrada.', 'error');
+          syncProposalUrl(null);
+        }
+      } catch {
+        showNotification('Erro ao carregar proposta.', 'error');
+      }
+    })();
+  }, [activeUser, authLoading]);
+
+  const handleSaveProposal = async (redirect: boolean = false, stateOverride?: AppState) => {
     if (!activeUser) {
         showNotification('Usuário não autenticado.', 'error');
         return;
     }
+
+    const dataToSave = stateOverride ?? appState;
     
     setIsSaving(true);
     
     try {
-        const cleanData = JSON.parse(JSON.stringify(appState));
+        const cleanData = JSON.parse(JSON.stringify(dataToSave));
 
         const payload = {
             userId: activeUser.uid,
             userEmail: activeUser.email,
             updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
             data: cleanData,
-            schoolName: appState.client.schoolName || 'Sem nome'
+            schoolName: dataToSave.client.schoolName || 'Sem nome'
         };
+
+        let savedId = currentProposalId;
 
         if (currentProposalId && !currentProposalId.startsWith('local_')) {
             await db.collection('proposals').doc(currentProposalId).set(payload, { merge: true });
-            showNotification('Proposta atualizada!', 'success');
+            if (!stateOverride?.meta?.isLocked) {
+                showNotification('Proposta atualizada!', 'success');
+            }
         } else {
             const docRef = await db.collection('proposals').add(payload);
+            savedId = docRef.id;
             setCurrentProposalId(docRef.id);
+            syncProposalUrl(docRef.id);
             showNotification('Proposta criada!', 'success');
         }
+
+        setSavedSnapshot(serializeEditorState(dataToSave, savedId));
         
         if (redirect) {
             setTimeout(() => {
                setViewMode('dashboard');
+               syncProposalUrl(null);
             }, 1500);
         }
 
@@ -166,8 +231,124 @@ function App() {
     }
   };
 
+  const handleLockProposal = async (presentationId: string, slidesUrl: string) => {
+    const lockedState: AppState = {
+      ...appState,
+      meta: {
+        isLocked: true,
+        googlePresentationId: presentationId,
+        googleSlidesUrl: slidesUrl,
+        lockedAt: new Date().toISOString(),
+      },
+    };
+    setAppState(lockedState);
+    await handleSaveProposal(false, lockedState);
+    showNotification('Proposta bloqueada após geração dos slides.', 'success');
+  };
+
+  const getGoogleAccessToken = async (): Promise<string | null> => {
+    const isTokenExpired = () => {
+      const timestamp = sessionStorage.getItem('googleTokenTimestamp');
+      if (!timestamp) return true;
+      return Date.now() - parseInt(timestamp) > 50 * 60 * 1000;
+    };
+
+    let token = googleAccessToken || sessionStorage.getItem('googleAccessToken');
+    if (token && !isTokenExpired()) return token;
+
+    try {
+      const provider = new firebase.auth.GoogleAuthProvider();
+      provider.addScope('https://www.googleapis.com/auth/presentations');
+      provider.addScope('https://www.googleapis.com/auth/drive.file');
+      const result = await auth.signInWithPopup(provider);
+      const credential = result.credential as firebase.auth.OAuthCredential | null;
+      token = credential?.accessToken ?? null;
+      if (token) {
+        sessionStorage.setItem('googleAccessToken', token);
+        sessionStorage.setItem('googleTokenTimestamp', Date.now().toString());
+        setGoogleAccessToken(token);
+      }
+      return token;
+    } catch {
+      return null;
+    }
+  };
+
+  const tryDeleteGeneratedSlides = async () => {
+    const presentationId = appState.meta?.googlePresentationId;
+    if (!presentationId) return;
+    const token = await getGoogleAccessToken();
+    if (!token) return;
+    try {
+      await deleteGooglePresentation(token, presentationId);
+    } catch (err) {
+      console.warn('Não foi possível excluir os slides gerados:', err);
+    }
+  };
+
+  const handleUnlockAndEdit = async () => {
+    setShowLockModal(false);
+    setIsUnlocking(true);
+    try {
+      await tryDeleteGeneratedSlides();
+      const { meta: _meta, ...rest } = appState;
+      const unlockedState: AppState = { ...rest };
+      setAppState(unlockedState);
+      await handleSaveProposal(false, unlockedState);
+      showNotification('Proposta desbloqueada para edição.', 'success');
+    } finally {
+      setIsUnlocking(false);
+    }
+  };
+
+  const handleCloneAndEdit = async () => {
+    setShowLockModal(false);
+    setIsUnlocking(true);
+    try {
+      const newData: AppState = JSON.parse(JSON.stringify(appState));
+      delete newData.meta;
+      newData.client.schoolName = `${newData.client.schoolName} (Cópia)`;
+      setAppState(newData);
+      setCurrentProposalId(null);
+      setCurrentStep(Step.START);
+      await handleSaveProposal(false, newData);
+    } finally {
+      setIsUnlocking(false);
+    }
+  };
+
+  const setAppStateEditable: React.Dispatch<React.SetStateAction<AppState>> = (action) => {
+    if (isLocked) {
+      notifyBlockedEdit();
+      return;
+    }
+    setAppState(action);
+  };
+
   const backToDashboard = () => {
+    if (isDirty) {
+      setShowDiscardModal(true);
+      return;
+    }
     setViewMode('dashboard');
+    syncProposalUrl(null);
+  };
+
+  const handleDiscardChanges = () => {
+    setShowDiscardModal(false);
+    setViewMode('dashboard');
+    syncProposalUrl(null);
+  };
+
+  const handleCopyProposalLink = async () => {
+    if (!currentProposalId) return;
+    const url = `${window.location.origin}${window.location.pathname}?proposta=${currentProposalId}`;
+    try {
+      await navigator.clipboard.writeText(url);
+      showNotification('Link copiado!', 'success');
+    } catch {
+      showNotification('Não foi possível copiar o link.', 'error');
+    }
   };
 
   const calculateRecommendedInfra = (students: number, segments: string[]): string[] => {
@@ -244,17 +425,19 @@ function App() {
   };
 
   const handleStartNext = () => {
-    if (appState.client.clientType === 'Espaço de Aprendizagem') {
-      const ls = appState.learningSpaceInfra;
-      const isEmpty = !ls || (ls.hybrid.length === 0 && ls.fundamental.length === 0 && ls.infantil.length === 0);
-      if (isEmpty) {
-        const defaultLS = getDefaultLearningSpaceInfra(appState.client.segments, appState.commercial.totalStudents);
-        setAppState(prev => ({ ...prev, learningSpaceInfra: defaultLS }));
-      }
-    } else {
-      if (!currentProposalId || appState.selectedInfraIds.length === 0) {
-        const recommendedInfra = calculateRecommendedInfra(appState.commercial.totalStudents, appState.client.segments);
-        setAppState(prev => ({ ...prev, selectedInfraIds: recommendedInfra }));
+    if (!isLocked) {
+      if (appState.client.clientType === 'Espaço de Aprendizagem') {
+        const ls = appState.learningSpaceInfra;
+        const isEmpty = !ls || (ls.hybrid.length === 0 && ls.fundamental.length === 0 && ls.infantil.length === 0);
+        if (isEmpty) {
+          const defaultLS = getDefaultLearningSpaceInfra(appState.client.segments, appState.commercial.totalStudents);
+          setAppState(prev => ({ ...prev, learningSpaceInfra: defaultLS }));
+        }
+      } else {
+        if (!currentProposalId || appState.selectedInfraIds.length === 0) {
+          const recommendedInfra = calculateRecommendedInfra(appState.commercial.totalStudents, appState.client.segments);
+          setAppState(prev => ({ ...prev, selectedInfraIds: recommendedInfra }));
+        }
       }
     }
     setCurrentStep(Step.WORKSHOPS);
@@ -307,8 +490,20 @@ function App() {
     <div className="flex h-screen bg-slate-50 font-sans text-slate-900 overflow-hidden relative">
       {notification && (
           <div className="absolute top-4 left-1/2 -translate-x-1/2 z-[100] animate-fade-in">
-              <div className={`flex items-center gap-3 px-6 py-3 rounded-full shadow-xl border ${notification.type === 'success' ? 'bg-[#8BBF56] border-[#7aa84b] text-white' : 'bg-red-600 border-red-500 text-white'}`}>
-                  {notification.type === 'success' ? <CheckCircle className="w-5 h-5" /> : <AlertCircle className="w-5 h-5" />}
+              <div className={`flex items-center gap-3 px-6 py-3 rounded-full shadow-xl border ${
+                notification.type === 'success'
+                  ? 'bg-[#8BBF56] border-[#7aa84b] text-white'
+                  : notification.type === 'info'
+                  ? 'bg-[#71477A] border-[#5d3a64] text-white'
+                  : 'bg-red-600 border-red-500 text-white'
+              }`}>
+                  {notification.type === 'success' ? (
+                    <CheckCircle className="w-5 h-5" />
+                  ) : notification.type === 'info' ? (
+                    <Lock className="w-5 h-5" />
+                  ) : (
+                    <AlertCircle className="w-5 h-5" />
+                  )}
                   <span className="font-medium text-sm">{notification.message}</span>
                   <button onClick={() => setNotification(null)} className="ml-2 opacity-70"><X className="w-4 h-4"/></button>
               </div>
@@ -324,6 +519,18 @@ function App() {
           <button onClick={() => isClientConfigured && setCurrentStep(Step.PROPOSAL)} disabled={!isClientConfigured} className={navItemClass(Step.PROPOSAL, !isClientConfigured)}><FileText className="w-5 h-5" /><span>Proposta</span></button>
         </nav>
         
+        {isLocked && currentProposalId && (
+          <div className="px-4 pb-2">
+            <button
+              onClick={handleCopyProposalLink}
+              className="w-full flex items-center justify-center gap-2 py-2 rounded-lg text-xs font-bold text-purple-100 bg-white/10 hover:bg-white/20 border border-white/20 transition-colors"
+            >
+              <Link2 className="w-3.5 h-3.5" />
+              Copiar Link
+            </button>
+          </div>
+        )}
+
         {/* Resumo da Proposta */}
         <div className="px-6 pb-2">
             <div className="bg-black/20 rounded-lg p-4 text-xs text-purple-100 space-y-3">
@@ -342,18 +549,114 @@ function App() {
         </div>
 
         <div className="p-4 border-t border-white/10">
-          <button onClick={() => handleSaveProposal(true)} disabled={isSaving} className="w-full bg-[#8BBF56] text-white py-2 rounded-lg font-bold hover:bg-[#7aa84b] transition-colors flex items-center justify-center gap-2 text-sm shadow-inner">
-            {isSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
-            {isSaving ? 'Salvando...' : 'Salvar'}
-          </button>
+          {isLocked ? (
+            <button
+              onClick={() => setShowLockModal(true)}
+              disabled={isUnlocking}
+              className="w-full bg-white/10 text-purple-100 py-2 rounded-lg font-bold hover:bg-white/20 transition-colors flex items-center justify-center gap-2 text-sm border border-white/20"
+            >
+              {isUnlocking ? <Loader2 className="w-4 h-4 animate-spin" /> : <Lock className="w-4 h-4" />}
+              {isUnlocking ? 'Processando...' : 'Bloqueada'}
+            </button>
+          ) : (
+            <button onClick={() => handleSaveProposal(false)} disabled={isSaving} className="w-full bg-[#8BBF56] text-white py-2 rounded-lg font-bold hover:bg-[#7aa84b] transition-colors flex items-center justify-center gap-2 text-sm shadow-inner">
+              {isSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+              {isSaving ? 'Salvando...' : 'Salvar'}
+            </button>
+          )}
         </div>
       </aside>
 
       <main className="flex-1 overflow-hidden relative">
-        {currentStep === Step.START && <StartScreen appState={appState} setAppState={setAppState} onNext={handleStartNext} />}
-        {currentStep === Step.WORKSHOPS && <WorkshopPanel appState={appState} setAppState={setAppState} onNext={() => setCurrentStep(Step.PROPOSAL)} />}
-        {currentStep === Step.PROPOSAL && <ProposalView appState={appState} setAppState={setAppState} onSave={handleSaveProposal} isSaving={isSaving} user={activeUser} isMaster={isMaster} googleAccessToken={googleAccessToken} />}
+        {currentStep === Step.START && <StartScreen appState={appState} setAppState={setAppStateEditable} onNext={handleStartNext} readOnly={isLocked} onBlockedEdit={notifyBlockedEdit} />}
+        {currentStep === Step.WORKSHOPS && <WorkshopPanel appState={appState} setAppState={setAppStateEditable} onNext={() => setCurrentStep(Step.PROPOSAL)} readOnly={isLocked} onBlockedEdit={notifyBlockedEdit} />}
+        {currentStep === Step.PROPOSAL && (
+          <ProposalView
+            appState={appState}
+            setAppState={setAppStateEditable}
+            onSave={handleSaveProposal}
+            onLock={handleLockProposal}
+            isSaving={isSaving}
+            user={activeUser}
+            isMaster={isMaster}
+            googleAccessToken={googleAccessToken}
+            readOnly={isLocked}
+            onBlockedEdit={notifyBlockedEdit}
+          />
+        )}
       </main>
+
+      {showDiscardModal && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in" onClick={() => setShowDiscardModal(false)}>
+          <div className="bg-white rounded-xl shadow-2xl max-w-md w-full overflow-hidden" onClick={(e) => e.stopPropagation()}>
+            <div className="p-6">
+              <div className="flex items-start gap-4 mb-2">
+                <div className="p-3 rounded-full shrink-0 bg-amber-100 text-amber-600">
+                  <AlertCircle className="w-6 h-6" />
+                </div>
+                <div>
+                  <h3 className="text-lg font-bold text-slate-900 leading-tight mb-1">Alterações não salvas</h3>
+                  <p className="text-slate-500 text-sm">Você tem alterações que ainda não foram salvas. O que deseja fazer?</p>
+                </div>
+              </div>
+              <div className="flex flex-col gap-3 mt-6">
+                <button
+                  onClick={handleDiscardChanges}
+                  className="w-full px-4 py-3 bg-red-600 hover:bg-red-700 text-white font-bold rounded-lg text-sm transition-colors"
+                >
+                  Descartar alterações
+                </button>
+                <button
+                  onClick={() => setShowDiscardModal(false)}
+                  className="w-full px-4 py-3 bg-[#71477A] hover:bg-[#5d3a64] text-white font-bold rounded-lg text-sm transition-colors"
+                >
+                  Continuar editando
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showLockModal && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in" onClick={() => setShowLockModal(false)}>
+          <div className="bg-white rounded-xl shadow-2xl max-w-md w-full overflow-hidden" onClick={(e) => e.stopPropagation()}>
+            <div className="p-6">
+              <div className="flex items-start gap-4 mb-2">
+                <div className="p-3 rounded-full shrink-0 bg-purple-100 text-[#71477A]">
+                  <Lock className="w-6 h-6" />
+                </div>
+                <div>
+                  <h3 className="text-lg font-bold text-slate-900 leading-tight mb-1">Proposta Gerada Bloqueada</h3>
+                  <p className="text-slate-500 text-sm">O que deseja fazer?</p>
+                </div>
+              </div>
+              <div className="flex flex-col gap-3 mt-6">
+                <button
+                  onClick={handleUnlockAndEdit}
+                  disabled={isUnlocking}
+                  className="w-full px-4 py-3 bg-[#71477A] hover:bg-[#5d3a64] text-white font-bold rounded-lg text-sm transition-colors disabled:opacity-60"
+                >
+                  Editar proposta atual
+                </button>
+                <button
+                  onClick={handleCloneAndEdit}
+                  disabled={isUnlocking}
+                  className="w-full px-4 py-3 bg-[#8BBF56] hover:bg-[#7aa84b] text-white font-bold rounded-lg text-sm transition-colors disabled:opacity-60"
+                >
+                  Clonar e editar
+                </button>
+                <button
+                  onClick={() => setShowLockModal(false)}
+                  className="w-full px-4 py-2 text-slate-500 text-sm hover:text-slate-700"
+                >
+                  Cancelar
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

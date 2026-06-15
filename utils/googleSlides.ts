@@ -1,6 +1,6 @@
 
 import { AppState, CategoryType } from '../types';
-import { PROPOSAL_TEXTS, INFRA_DETAILS, AMBIENTATION_IMAGES, INFRA_CATALOG, SUBSCRIPTION_PLANS_EA, getRecommendedPlanIndexForStudents } from '../constants';
+import { PROPOSAL_TEXTS, INFRA_DETAILS, AMBIENTATION_IMAGES, INFRA_CATALOG, SUBSCRIPTION_PLANS_EA, getRecommendedPlanIndexForStudents, GOOGLE_PROPOSALS_FOLDER_ID } from '../constants';
 
 // Colors
 const PURPLE = { red: 0.443, green: 0.278, blue: 0.478 }; // #71477A
@@ -123,6 +123,50 @@ const getProposalText = (category: CategoryType, selectedIds: string[], calculat
     };
 };
 
+const PROPOSALS_FOLDER_ERROR =
+  'Pasta Propostas não foi encontrada ou sem permissão. Verifique se a pasta está compartilhada com sua conta Google.';
+
+const movePresentationToFolder = async (
+  accessToken: string,
+  fileId: string,
+  folderId: string
+): Promise<void> => {
+  const getRes = await fetch(
+    `https://www.googleapis.com/drive/v3/files/${fileId}?fields=parents`,
+    { headers: { Authorization: `Bearer ${accessToken}` } }
+  );
+  if (!getRes.ok) {
+    const err = await getRes.json().catch(() => ({}));
+    throw new Error(err.error?.message || 'Erro ao localizar apresentação no Drive.');
+  }
+  const file = await getRes.json();
+  const previousParents = (file.parents as string[] | undefined)?.join(',') || '';
+
+  const params = new URLSearchParams({ addParents: folderId });
+  if (previousParents) params.set('removeParents', previousParents);
+
+  const moveRes = await fetch(
+    `https://www.googleapis.com/drive/v3/files/${fileId}?${params.toString()}`,
+    {
+      method: 'PATCH',
+      headers: { Authorization: `Bearer ${accessToken}` },
+    }
+  );
+  if (!moveRes.ok) {
+    if (moveRes.status === 403 || moveRes.status === 404) {
+      throw new Error(PROPOSALS_FOLDER_ERROR);
+    }
+    const err = await moveRes.json().catch(() => ({}));
+    throw new Error(err.error?.message || PROPOSALS_FOLDER_ERROR);
+  }
+};
+
+const formatProposalFileTimestamp = () => {
+  const now = new Date();
+  const pad = (n: number) => n.toString().padStart(2, '0');
+  return `${pad(now.getDate())}/${pad(now.getMonth() + 1)}/${now.getFullYear()} ${pad(now.getHours())}:${pad(now.getMinutes())}`;
+};
+
 export const createGoogleSlidePresentation = async (
   accessToken: string,
   appState: AppState,
@@ -143,7 +187,7 @@ export const createGoogleSlidePresentation = async (
       'Content-Type': 'application/json',
     },
     body: JSON.stringify({
-      title: `Proposta - ${client.schoolName}`,
+      title: `Proposta - ${client.schoolName} - ${formatProposalFileTimestamp()}`,
     }),
   });
 
@@ -155,6 +199,16 @@ export const createGoogleSlidePresentation = async (
   }
 
   const presentationId = presentation.presentationId;
+
+  try {
+    await movePresentationToFolder(accessToken, presentationId, GOOGLE_PROPOSALS_FOLDER_ID);
+  } catch (err) {
+    await fetch(`https://www.googleapis.com/drive/v3/files/${presentationId}`, {
+      method: 'DELETE',
+      headers: { Authorization: `Bearer ${accessToken}` },
+    }).catch(() => {});
+    throw err;
+  }
   
   // 1.5 Get the ID of the default first slide to delete it later
   let defaultSlideId: string | null = null;
@@ -1182,4 +1236,20 @@ export const createGoogleSlidePresentation = async (
   }
 
   return `https://docs.google.com/presentation/d/${presentationId}/edit`;
+};
+
+export const extractPresentationIdFromUrl = (url: string): string | null => {
+  const match = url.match(/\/d\/([^/]+)/);
+  return match?.[1] ?? null;
+};
+
+export const deleteGooglePresentation = async (accessToken: string, presentationId: string): Promise<void> => {
+  const res = await fetch(`https://www.googleapis.com/drive/v3/files/${presentationId}`, {
+    method: 'DELETE',
+    headers: { Authorization: `Bearer ${accessToken}` },
+  });
+  if (!res.ok && res.status !== 404) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.error?.message || 'Erro ao excluir apresentação no Google Drive.');
+  }
 };

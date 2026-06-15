@@ -4,11 +4,14 @@ import { AppState } from '../types';
 import { BRAZIL_STATES } from '../constants';
 import { Building2, Calendar, User, ArrowRight, Users, CheckCircle2, FileText, MapPin } from 'lucide-react';
 import { useSettings } from '../contexts/SettingsContext';
+import { createLockedCaptureHandler, lockedInputClass } from '../utils/lockedEdit';
 
 interface StartScreenProps {
   appState: AppState;
   setAppState: React.Dispatch<React.SetStateAction<AppState>>;
   onNext: () => void;
+  readOnly?: boolean;
+  onBlockedEdit?: () => void;
 }
 
 const SEGMENT_OPTIONS = [
@@ -23,11 +26,12 @@ const CLIENT_TYPE_OPTIONS: Array<'Escola' | 'Espaço de Aprendizagem'> = [
     'Espaço de Aprendizagem'
 ];
 
-export const StartScreen: React.FC<StartScreenProps> = ({ appState, setAppState, onNext }) => {
+export const StartScreen: React.FC<StartScreenProps> = ({ appState, setAppState, onNext, readOnly = false, onBlockedEdit }) => {
   const { settings } = useSettings(); // Use Global Settings for Catalog
   const { client, commercial } = appState;
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
+    if (readOnly) { onBlockedEdit?.(); return; }
     const { name, value } = e.target;
     
     setAppState(prev => {
@@ -54,6 +58,7 @@ export const StartScreen: React.FC<StartScreenProps> = ({ appState, setAppState,
   };
 
   const handleStudentChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (readOnly) { onBlockedEdit?.(); return; }
     const val = parseInt(e.target.value) || 0;
     setAppState(prev => ({
         ...prev,
@@ -62,6 +67,7 @@ export const StartScreen: React.FC<StartScreenProps> = ({ appState, setAppState,
   };
 
   const toggleSegment = (segment: string) => {
+    if (readOnly) { onBlockedEdit?.(); return; }
     setAppState(prev => {
         const currentSegments = prev.client.segments || [];
         const newSegments = currentSegments.includes(segment)
@@ -104,6 +110,7 @@ export const StartScreen: React.FC<StartScreenProps> = ({ appState, setAppState,
 
   // Check if state is selected (not empty)
   const isFormValid = client.schoolName && client.contactName && client.date && client.state && client.state !== '';
+  const handleLockedCapture = createLockedCaptureHandler(readOnly, onBlockedEdit);
 
   return (
     <div className="h-full flex flex-col bg-slate-50 overflow-hidden">
@@ -116,6 +123,7 @@ export const StartScreen: React.FC<StartScreenProps> = ({ appState, setAppState,
             </h1>
 
             <button
+              data-nav-action
               onClick={onNext}
               disabled={!isFormValid}
               className={`flex items-center gap-2 px-6 py-2 rounded-lg font-bold transition-all shadow-sm ${
@@ -140,7 +148,7 @@ export const StartScreen: React.FC<StartScreenProps> = ({ appState, setAppState,
                 <h2 className="text-xl font-bold">Nova Proposta Comercial</h2>
             </div>
             
-            <div className="p-8 space-y-6">
+            <div className="p-8 space-y-6" onMouseDownCapture={handleLockedCapture}>
                 {/* Form Fields */}
                 <div className="space-y-4">
                     {/* Tipo de cliente (sem título explícito) */}
@@ -151,11 +159,17 @@ export const StartScreen: React.FC<StartScreenProps> = ({ appState, setAppState,
                                 <button
                                     type="button"
                                     key={type}
-                                    onClick={() => setAppState(prev => ({
+                                    data-editable
+                                    onClick={() => {
+                                      if (readOnly) return;
+                                      setAppState(prev => ({
                                         ...prev,
                                         client: { ...prev.client, clientType: type }
-                                    }))}
-                                    className={`flex items-center gap-3 p-3 rounded-lg border cursor-pointer transition-all text-left ${
+                                      }));
+                                    }}
+                                    className={`flex items-center gap-3 p-3 rounded-lg border transition-all text-left ${
+                                        readOnly ? 'cursor-default' : 'cursor-pointer'
+                                    } ${
                                         isSelected
                                         ? 'bg-green-50 border-[#8BBF56] text-[#6a9440]'
                                         : 'bg-white border-slate-200 hover:border-green-300 text-slate-600'
@@ -183,7 +197,8 @@ export const StartScreen: React.FC<StartScreenProps> = ({ appState, setAppState,
                             name="schoolName"
                             value={client.schoolName}
                             onChange={handleChange}
-                            className="block w-full pl-10 pr-3 py-3 border border-slate-300 rounded-lg focus:ring-[#8BBF56] focus:border-[#8BBF56] transition-colors bg-white text-slate-900"
+                            readOnly={readOnly}
+                            className={lockedInputClass(readOnly, "block w-full pl-10 pr-3 py-3 border border-slate-300 rounded-lg focus:ring-[#8BBF56] focus:border-[#8BBF56] transition-colors bg-white text-slate-900")}
                             placeholder="Ex: Colégio Futuro"
                         />
                         </div>
@@ -202,7 +217,8 @@ export const StartScreen: React.FC<StartScreenProps> = ({ appState, setAppState,
                         name="contactName"
                         value={client.contactName}
                         onChange={handleChange}
-                        className="block w-full pl-10 pr-3 py-3 border border-slate-300 rounded-lg focus:ring-[#8BBF56] focus:border-[#8BBF56] transition-colors bg-white text-slate-900"
+                        readOnly={readOnly}
+                        className={lockedInputClass(readOnly, "block w-full pl-10 pr-3 py-3 border border-slate-300 rounded-lg focus:ring-[#8BBF56] focus:border-[#8BBF56] transition-colors bg-white text-slate-900")}
                         placeholder="Ex: Maria Silva"
                         />
                     </div>
@@ -219,7 +235,8 @@ export const StartScreen: React.FC<StartScreenProps> = ({ appState, setAppState,
                         name="date"
                         value={client.date}
                         onChange={handleChange}
-                        className="block w-full pl-10 pr-3 py-3 border border-slate-300 rounded-lg focus:ring-[#8BBF56] focus:border-[#8BBF56] transition-colors bg-white text-slate-900"
+                        readOnly={readOnly}
+                        className={lockedInputClass(readOnly, "block w-full pl-10 pr-3 py-3 border border-slate-300 rounded-lg focus:ring-[#8BBF56] focus:border-[#8BBF56] transition-colors bg-white text-slate-900")}
                         />
                     </div>
                     </div>
@@ -236,9 +253,9 @@ export const StartScreen: React.FC<StartScreenProps> = ({ appState, setAppState,
                                 name="state"
                                 value={client.state}
                                 onChange={handleChange}
-                                className={`block w-full pl-10 pr-3 py-3 border rounded-lg focus:ring-[#8BBF56] focus:border-[#8BBF56] transition-colors bg-white ${
+                                className={lockedInputClass(readOnly, `block w-full pl-10 pr-3 py-3 border rounded-lg focus:ring-[#8BBF56] focus:border-[#8BBF56] transition-colors bg-white ${
                                     !client.state ? 'border-red-300 text-slate-500' : 'border-slate-300 text-slate-900'
-                                }`}
+                                }`)}
                             >
                                 <option value="" disabled>Selecione</option>
                                 {BRAZIL_STATES.map(s => (
@@ -257,7 +274,8 @@ export const StartScreen: React.FC<StartScreenProps> = ({ appState, setAppState,
                             type="number"
                             value={commercial.totalStudents}
                             onChange={handleStudentChange}
-                            className="block w-full pl-10 pr-3 py-3 border border-slate-300 rounded-lg focus:ring-[#8BBF56] focus:border-[#8BBF56] transition-colors bg-white text-slate-900"
+                            readOnly={readOnly}
+                            className={lockedInputClass(readOnly, "block w-full pl-10 pr-3 py-3 border border-slate-300 rounded-lg focus:ring-[#8BBF56] focus:border-[#8BBF56] transition-colors bg-white text-slate-900")}
                             placeholder="Ex: 250"
                             />
                         </div>
@@ -272,8 +290,11 @@ export const StartScreen: React.FC<StartScreenProps> = ({ appState, setAppState,
                             return (
                                 <div 
                                     key={segment}
+                                    data-editable
                                     onClick={() => toggleSegment(segment)}
-                                    className={`flex items-center gap-3 p-3 rounded-lg border cursor-pointer transition-all ${
+                                    className={`flex items-center gap-3 p-3 rounded-lg border transition-all ${
+                                        readOnly ? 'cursor-default opacity-80' : 'cursor-pointer'
+                                    } ${
                                         isSelected 
                                         ? 'bg-green-50 border-[#8BBF56] text-[#6a9440]' 
                                         : 'bg-white border-slate-200 hover:border-green-300 text-slate-600'

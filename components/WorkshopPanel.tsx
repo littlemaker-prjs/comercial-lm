@@ -3,20 +3,42 @@ import React from 'react';
 import { AppState, CategoryType } from '../types';
 import { Truck, ArrowRight, AlertCircle } from 'lucide-react';
 import { useSettings } from '../contexts/SettingsContext';
+import { createLockedCaptureHandler } from '../utils/lockedEdit';
 
 interface WorkshopPanelProps {
   appState: AppState;
   setAppState: React.Dispatch<React.SetStateAction<AppState>>;
   onNext?: () => void;
+  readOnly?: boolean;
+  onBlockedEdit?: () => void;
 }
 
-export const WorkshopPanel: React.FC<WorkshopPanelProps> = ({ appState, setAppState, onNext }) => {
+export const WorkshopPanel: React.FC<WorkshopPanelProps> = ({ appState, setAppState, onNext, readOnly = false, onBlockedEdit }) => {
   const { settings } = useSettings(); // Use Global Settings
   const { regionId, selectedInfraIds, learningSpaceInfra } = appState;
   const segments = appState.client.segments || [];
   const isLearningSpace = appState.client.clientType === 'Espaço de Aprendizagem';
+  const currentRegion = settings.regions.find(r => r.id === regionId) || settings.regions[0];
+
+  const regionInfo = (
+    <div className="flex items-center gap-4 flex-wrap">
+      <span className="font-bold text-slate-800 flex items-center gap-2">
+        <Truck className="w-5 h-5" />
+        Região Entrega:
+      </span>
+      <div className="flex flex-col gap-0.5">
+        <span className="bg-[#EBF5E0] text-slate-800 font-medium py-2 px-4 rounded-full border border-[#d4e8c0]">
+          {currentRegion.label}
+        </span>
+        <span className="text-xs text-slate-500">
+          Definida pelo estado (UF) no cadastro do cliente.
+        </span>
+      </div>
+    </div>
+  );
 
   const toggleItem = (itemId: string, category: CategoryType) => {
+    if (readOnly) { onBlockedEdit?.(); return; }
     setAppState(prev => {
       const isSelected = prev.selectedInfraIds.includes(itemId);
       const item = settings.infraCatalog.find(i => i.id === itemId);
@@ -138,7 +160,7 @@ export const WorkshopPanel: React.FC<WorkshopPanelProps> = ({ appState, setAppSt
               {ambientacao.map(item => {
                 const isSelected = selectedInfraIds.includes(item.id);
                 return (
-                  <label key={item.id} className="flex items-start gap-3 cursor-pointer group hover:bg-slate-50 p-2 rounded-lg -ml-2 transition-colors">
+                  <label key={item.id} className={`flex items-start gap-3 group p-2 rounded-lg -ml-2 transition-colors ${readOnly ? 'cursor-default' : 'cursor-pointer hover:bg-slate-50'}`}>
                     <div className={`relative flex-shrink-0 flex items-center justify-center w-5 h-5 rounded border transition-colors mt-0.5 ${
                         isSelected ? 'bg-slate-800 border-slate-800' : 'bg-white border-slate-300 group-hover:border-slate-400'
                     }`}>
@@ -165,7 +187,7 @@ export const WorkshopPanel: React.FC<WorkshopPanelProps> = ({ appState, setAppSt
               {ferramentas.map(item => {
                  const isSelected = selectedInfraIds.includes(item.id);
                  return (
-                 <label key={item.id} className="flex items-start gap-3 cursor-pointer group hover:bg-slate-50 p-2 rounded-lg -ml-2 transition-colors">
+                 <label key={item.id} className={`flex items-start gap-3 group p-2 rounded-lg -ml-2 transition-colors ${readOnly ? 'cursor-default' : 'cursor-pointer hover:bg-slate-50'}`}>
                  <div className={`relative flex-shrink-0 flex items-center justify-center w-5 h-5 rounded border transition-colors mt-0.5 ${
                      isSelected ? 'bg-slate-800 border-slate-800' : 'bg-white border-slate-300 group-hover:border-slate-400'
                  }`}>
@@ -192,6 +214,7 @@ export const WorkshopPanel: React.FC<WorkshopPanelProps> = ({ appState, setAppSt
 
   const hasEI = segments.includes("Educação Infantil");
   const hasEF = segments.includes("Ens. Fundamental Anos Iniciais") || segments.includes("Ens. Fundamental Anos Finais") || segments.includes("Ensino Médio");
+  const handleLockedCapture = createLockedCaptureHandler(readOnly, onBlockedEdit);
 
   // Layout especial para Espaço de Aprendizagem (estado separado por coluna)
   if (isLearningSpace) {
@@ -354,30 +377,11 @@ export const WorkshopPanel: React.FC<WorkshopPanelProps> = ({ appState, setAppSt
         {/* Region Selector Header */}
         <div className="bg-white border-b border-slate-200 p-4 shadow-sm z-10 shrink-0">
           <div className="max-w-7xl mx-auto flex items-center justify-between gap-4">
-            <div className="flex items-center gap-4">
-              <label className="font-bold text-slate-800 flex items-center gap-2">
-                <Truck className="w-5 h-5" />
-                Região Entrega:
-              </label>
-              <div className="relative">
-                <select 
-                  value={regionId}
-                  onChange={(e) => setAppState(prev => ({ ...prev, regionId: e.target.value }))}
-                  className="appearance-none bg-[#EBF5E0] text-slate-800 font-medium py-2 pl-4 pr-10 rounded-full border border-[#d4e8c0] focus:outline-none focus:ring-2 focus:ring-[#8BBF56] cursor-pointer min-w-[200px]"
-                >
-                  {/* USE SETTINGS REGIONS */}
-                  {settings.regions.map(r => (
-                    <option key={r.id} value={r.id}>{r.label}</option>
-                  ))}
-                </select>
-                <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-slate-600">
-                  <svg className="fill-current h-4 w-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20"><path d="M9.293 12.95l.707.707L15.657 8l-1.414-1.414L10 10.828 5.757 6.586 4.343 8z"/></svg>
-                </div>
-              </div>
-            </div>
+            {regionInfo}
             
             {onNext && (
               <button 
+                data-nav-action
                 onClick={onNext}
                 className="flex items-center gap-2 bg-[#71477A] text-white px-6 py-2 rounded-lg font-bold hover:bg-[#5d3a64] transition-colors shadow-sm"
               >
@@ -389,7 +393,7 @@ export const WorkshopPanel: React.FC<WorkshopPanelProps> = ({ appState, setAppSt
         </div>
 
         {/* Custom Columns for Espaço de Aprendizagem */}
-        <div className="flex-1 w-full overflow-x-auto overflow-y-hidden">
+        <div className="flex-1 w-full overflow-x-auto overflow-y-hidden" onMouseDownCapture={handleLockedCapture}>
           <div className="h-full flex gap-6 p-6 min-w-max">
             {learningColumns.map(col => (
               <div key={col.id} className="flex-1 min-w-[340px] max-w-[420px] flex flex-col bg-white rounded-lg shadow-sm border border-slate-200 overflow-hidden shrink-0">
@@ -405,7 +409,7 @@ export const WorkshopPanel: React.FC<WorkshopPanelProps> = ({ appState, setAppSt
                         const current = learningSpaceInfra?.[col.id as 'hybrid' | 'fundamental' | 'infantil'] || [];
                         const isSelected = current.includes(item.id);
                         return (
-                          <label key={item.id} className="flex items-start gap-3 cursor-pointer group hover:bg-slate-50 p-2 rounded-lg -ml-2 transition-colors">
+                          <label key={item.id} className={`flex items-start gap-3 group p-2 rounded-lg -ml-2 transition-colors ${readOnly ? 'cursor-default' : 'cursor-pointer hover:bg-slate-50'}`}>
                             <div className={`relative flex-shrink-0 flex items-center justify-center w-5 h-5 rounded border transition-colors mt-0.5 ${
                               isSelected ? 'bg-slate-800 border-slate-800' : 'bg-white border-slate-300 group-hover:border-slate-400'
                             }`}>
@@ -414,6 +418,7 @@ export const WorkshopPanel: React.FC<WorkshopPanelProps> = ({ appState, setAppSt
                                 className="opacity-0 absolute inset-0 cursor-pointer"
                                 checked={isSelected}
                                 onChange={() => {
+                                  if (readOnly) return;
                                   const colKey = col.id as ColKey;
                                   const prevCol = learningSpaceInfra?.[colKey] || [];
                                   const nextCol = toggleLearningAmbient(colKey, item.id, prevCol);
@@ -446,7 +451,7 @@ export const WorkshopPanel: React.FC<WorkshopPanelProps> = ({ appState, setAppSt
                         const current = learningSpaceInfra?.[col.id as 'hybrid' | 'fundamental' | 'infantil'] || [];
                         const isSelected = current.includes(item.id);
                         return (
-                          <label key={item.id} className="flex items-start gap-3 cursor-pointer group hover:bg-slate-50 p-2 rounded-lg -ml-2 transition-colors">
+                          <label key={item.id} className={`flex items-start gap-3 group p-2 rounded-lg -ml-2 transition-colors ${readOnly ? 'cursor-default' : 'cursor-pointer hover:bg-slate-50'}`}>
                             <div className={`relative flex-shrink-0 flex items-center justify-center w-5 h-5 rounded border transition-colors mt-0.5 ${
                               isSelected ? 'bg-slate-800 border-slate-800' : 'bg-white border-slate-300 group-hover:border-slate-400'
                             }`}>
@@ -455,6 +460,7 @@ export const WorkshopPanel: React.FC<WorkshopPanelProps> = ({ appState, setAppSt
                                 className="opacity-0 absolute inset-0 cursor-pointer"
                                 checked={isSelected}
                                 onChange={() => {
+                                  if (readOnly) return;
                                   const colKey = col.id as ColKey;
                                   const prevCol = learningSpaceInfra?.[colKey] || [];
                                   const nextCol = toggleLearningTools(colKey, item.id, prevCol);
@@ -494,30 +500,11 @@ export const WorkshopPanel: React.FC<WorkshopPanelProps> = ({ appState, setAppSt
         {/* Region Selector Header */}
         <div className="bg-white border-b border-slate-200 p-4 shadow-sm z-10 shrink-0">
             <div className="max-w-7xl mx-auto flex items-center justify-between gap-4">
-                <div className="flex items-center gap-4">
-                    <label className="font-bold text-slate-800 flex items-center gap-2">
-                        <Truck className="w-5 h-5" />
-                        Região Entrega:
-                    </label>
-                    <div className="relative">
-                        <select 
-                            value={regionId}
-                            onChange={(e) => setAppState(prev => ({ ...prev, regionId: e.target.value }))}
-                            className="appearance-none bg-[#EBF5E0] text-slate-800 font-medium py-2 pl-4 pr-10 rounded-full border border-[#d4e8c0] focus:outline-none focus:ring-2 focus:ring-[#8BBF56] cursor-pointer min-w-[200px]"
-                        >
-                            {/* USE SETTINGS REGIONS */}
-                            {settings.regions.map(r => (
-                                <option key={r.id} value={r.id}>{r.label}</option>
-                            ))}
-                        </select>
-                        <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-slate-600">
-                            <svg className="fill-current h-4 w-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20"><path d="M9.293 12.95l.707.707L15.657 8l-1.414-1.414L10 10.828 5.757 6.586 4.343 8z"/></svg>
-                        </div>
-                    </div>
-                </div>
+                {regionInfo}
                 
                 {onNext && (
                     <button 
+                        data-nav-action
                         onClick={onNext}
                         className="flex items-center gap-2 bg-[#71477A] text-white px-6 py-2 rounded-lg font-bold hover:bg-[#5d3a64] transition-colors shadow-sm"
                     >
@@ -529,7 +516,7 @@ export const WorkshopPanel: React.FC<WorkshopPanelProps> = ({ appState, setAppSt
         </div>
 
         {/* Scrollable Columns */}
-        <div className="flex-1 w-full overflow-x-auto overflow-y-hidden">
+        <div className="flex-1 w-full overflow-x-auto overflow-y-hidden" onMouseDownCapture={handleLockedCapture}>
             <div className="h-full flex gap-6 p-6 min-w-max">
                 {hasEI ? renderCategoryColumn('Maker Infantil', 'infantil') : (
                     <div className="flex-1 min-w-[300px] max-w-[340px] flex items-center justify-center border-2 border-dashed border-slate-200 rounded-lg bg-slate-50/50 text-slate-400 p-8 text-center text-sm">
