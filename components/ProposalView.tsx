@@ -7,6 +7,7 @@ import PptxGenJS from 'pptxgenjs';
 import { auth, googleProvider } from '../firebase';
 import { createGoogleSlidePresentation, extractPresentationIdFromUrl } from '../utils/googleSlides';
 import { createLockedCaptureHandler, lockedInputClass } from '../utils/lockedEdit';
+import { formatDateBR } from '../utils/date';
 import firebase from 'firebase/compat/app';
 import 'firebase/compat/auth';
 
@@ -624,7 +625,7 @@ export const ProposalView: React.FC<ProposalViewProps> = ({ appState, setAppStat
                    <span className="text-slate-800 font-bold text-lg">{appState.client.contactName || 'Responsável'}</span>
                 </div>
                 <div className="text-slate-600 font-medium">
-                   {new Date(appState.client.date).toLocaleDateString('pt-BR')}
+                   {formatDateBR(appState.client.date)}
                 </div>
              </div>
           </div>

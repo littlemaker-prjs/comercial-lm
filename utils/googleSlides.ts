@@ -1,6 +1,7 @@
 
 import { AppState, CategoryType } from '../types';
 import { PROPOSAL_TEXTS, INFRA_DETAILS, AMBIENTATION_IMAGES, INFRA_CATALOG, SUBSCRIPTION_PLANS_EA, getRecommendedPlanIndexForStudents, GOOGLE_PROPOSALS_FOLDER_ID } from '../constants';
+import { formatDateBR } from './date';
 
 // Colors
 const PURPLE = { red: 0.443, green: 0.278, blue: 0.478 }; // #71477A
@@ -332,7 +333,7 @@ export const createGoogleSlidePresentation = async (
   addText(coverId, client.schoolName || 'Escola', 0, 150, 720, 50, 32, PURPLE, true, 'CENTER');
   addText(coverId, `A/C: ${client.contactName}`, 0, 210, 720, 30, 18, GRAY, false, 'CENTER');
   
-  const dateStr = new Date(client.date).toLocaleDateString('pt-BR');
+  const dateStr = formatDateBR(client.date);
   const consultantName = client.consultantName || "Consultor";
   addText(coverId, `Proposta gerada por ${consultantName} em ${dateStr}`, 0, 260, 720, 30, 14, GRAY, false, 'CENTER');
   addText(coverId, "Proposta válida por 30 dias a partir da data de emissão.", 0, 290, 720, 30, 12, GRAY, false, 'CENTER');

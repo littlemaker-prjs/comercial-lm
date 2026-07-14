@@ -1,5 +1,6 @@
 
 import { InfraItem, Region, AppState, TechDetail } from './types';
+import { todayLocalISODate } from './utils/date';
 
 export const SUPER_ADMINS = [
   'diego.thuler@littlemaker.com.br',
@@ -675,7 +676,7 @@ export const INITIAL_APP_STATE: AppState = {
     clientType: 'Escola',
     schoolName: '',
     contactName: '',
-    date: new Date().toISOString().split('T')[0],
+    date: todayLocalISODate(),
     state: '', // Default vazia para forçar seleção
     segments: [],
   },
